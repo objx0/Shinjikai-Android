@@ -42,6 +42,7 @@ import com.shinjikai.dictionary.data.WordDetailsResponse
 import com.shinjikai.dictionary.data.Writing
 import com.shinjikai.dictionary.data.YomitanMetaEntity
 import com.shinjikai.dictionary.data.YomitanImporter
+import com.shinjikai.dictionary.integration.BookmarkCsvExporter
 import com.shinjikai.dictionary.data.detectOfflineArchiveKind
 import com.shinjikai.dictionary.data.extractOfflineArchive
 import com.shinjikai.dictionary.data.extractZipStream
@@ -578,6 +579,27 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
             bookmarkedItems.removeAll { it.id in ids }
             pendingBookmarkDeletionIds = null
             selectedBookmarkIds = emptySet()
+        }
+    }
+
+    fun suggestBookmarkExportFileName(): String = BookmarkCsvExporter.suggestedFileName()
+
+    fun exportBookmarksToCsv(uri: Uri) {
+        viewModelScope.launch {
+            val exported = runCatching {
+                val bookmarks = withContext(Dispatchers.IO) { bookmarkRepository.getAll() }
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { writer ->
+                        writer.write(BookmarkCsvExporter.toCsv(bookmarks))
+                    } ?: error("Could not open export destination")
+                }
+                bookmarks.size
+            }
+            val message = exported.fold(
+                onSuccess = { count -> context.getString(R.string.bookmarks_export_success, count) },
+                onFailure = { context.getString(R.string.bookmarks_export_failure) }
+            )
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
 

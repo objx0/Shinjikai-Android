@@ -73,6 +73,9 @@
     <string name="bookmarks_delete" comment="Intentional duplicate of settings_delete_dictionary_confirm; this is the delete action for bookmarked entries">حذف</string>
     <string name="bookmarks_done">تم</string>
     <string name="bookmarks_manage">إدارة</string>
+    <string name="bookmarks_export_csv">تصدير المحفوظات بصيغة CSV</string>
+    <string name="bookmarks_export_success">تم تصدير %1$d كلمات</string>
+    <string name="bookmarks_export_failure">تعذّر تصدير المحفوظات</string>
     <string name="bookmarks_empty">لا توجد كلمات محفوظة</string>
     <string name="bookmarks_added_at">أضيفت: %1$s</string>
     <string name="bookmarks_delete_confirmation_title">حذف من المحفوظات؟</string>
@@ -178,7 +181,7 @@
     <string name="settings_anki_available_decks">&#x0627;&#x0644;&#x0631;&#x0632;&#x0645; &#x0627;&#x0644;&#x0645;&#x062A;&#x0627;&#x062D;&#x0629;</string>
     <string name="settings_anki_deck_field_label">&#x0627;&#x062E;&#x062A;&#x0631; &#x0627;&#x0644;&#x0631;&#x0632;&#x0645;&#x0629;</string>
     <string name="settings_anki_use_default_deck">&#x0627;&#x0633;&#x062A;&#x062E;&#x062F;&#x0627;&#x0645; &#x0631;&#x0632;&#x0645;&#x0629; Shinjikai &#x0627;&#x0644;&#x0627;&#x0641;&#x062A;&#x0631;&#x0627;&#x0636;&#x064A;&#x0629;</string>
-    <string name="settings_dictionary_page_description">أضف مصادر جديدة للقاموس باستيراد ملفات القواميس أو قواميس Yomitan بصيغة ZIP عبر زر «+». ستظهر جميع المصادر المثبّتة هنا.</string>
+    <string name="settings_dictionary_page_description">أضف قواميس Yomitan مضغوطة بزر «+».\nستظهر بعد تثبيتها هنا.</string>
     <string name="settings_bundled_dictionary_source">القاموس المدمج</string>
     <string name="settings_installed_dictionaries_title">القواميس المثبتة</string>
     <string name="settings_delete_dictionary_action">حذف قاموس %1$s</string>

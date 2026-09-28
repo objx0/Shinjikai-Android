@@ -147,6 +147,11 @@ fun ShinjikaiApp(
             viewModel.importOfflineDictionaryFromUri(uri)
         }
     }
+    val exportBookmarksLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) viewModel.exportBookmarksToCsv(uri)
+    }
     val japaneseTextToSpeech = rememberJapaneseTextToSpeechController()
 
     LaunchedEffect(externalSearchTerm) {
@@ -281,6 +286,9 @@ fun ShinjikaiApp(
                                 viewModel = viewModel,
                                 uiState = viewModel.bookmarksUiState,
                                 bookmarkFlow = viewModel.bookmarkPagingFlow,
+                                onExportBookmarks = {
+                                    exportBookmarksLauncher.launch(viewModel.suggestBookmarkExportFileName())
+                                },
                                 onOpenBookmarkDetails = {
                                     focusManager.clearFocus()
                                     navController.navigate(

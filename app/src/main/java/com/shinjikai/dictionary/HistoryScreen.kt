@@ -16,15 +16,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.HistoryToggleOff
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -108,14 +107,10 @@ fun HistoryScreenContent(
                             icon = Icons.Default.History,
                             action = {
                                 FilledTonalIconButton(
-                                    onClick = { pendingClearAllHistory = true },
-                                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                                    onClick = { pendingClearAllHistory = true }
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.DeleteSweep,
+                                        imageVector = Icons.Default.HistoryToggleOff,
                                         contentDescription = stringResource(R.string.search_clear_history)
                                     )
                                 }

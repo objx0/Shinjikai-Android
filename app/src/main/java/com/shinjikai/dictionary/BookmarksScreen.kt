@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -56,6 +57,7 @@ fun BookmarksScreenContent(
     uiState: BookmarksUiState,
     bookmarkFlow: Flow<PagingData<BookmarkItem>>,
     onOpenBookmarkDetails: (SearchItem) -> Unit,
+    onExportBookmarks: () -> Unit,
 ) {
     val bookmarks = bookmarkFlow.collectAsLazyPagingItems()
     val locale = Locale.getDefault()
@@ -125,6 +127,15 @@ fun BookmarksScreenContent(
                 )
             }
         } else {
+            FilledTonalIconButton(
+                enabled = allIds.isNotEmpty(),
+                onClick = onExportBookmarks
+            ) {
+                Icon(
+                    imageVector = Icons.Default.FileDownload,
+                    contentDescription = stringResource(R.string.bookmarks_export_csv)
+                )
+            }
             FilledTonalIconButton(
                 enabled = allIds.isNotEmpty(),
                 onClick = { viewModel.updateBookmarkEditMode(true) }
