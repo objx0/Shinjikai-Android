@@ -1247,10 +1247,10 @@ private fun MeaningEntryCard(
                                 text = citedJapaneseDefinition,
                                 modifier = Modifier.fillMaxWidth(),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    textDirection = TextDirection.ContentOrLtr
+                                    textDirection = TextDirection.Ltr
                                 ),
                                 color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Right
+                                textAlign = TextAlign.Left
                             )
                         }
                     }
