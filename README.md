@@ -11,10 +11,12 @@
 
 ## 📱 Screenshots
 
-<p align="center">
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/screenshot-1.png" alt="Shinjikai search screen" width="260" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/screenshot-2.png" alt="Shinjikai word details screen" width="260" />
-</p>
+<table align="center">
+  <tr>
+    <td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/screenshot-1.png" alt="Shinjikai search screen" width="240" /></td>
+    <td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/screenshot-2.png" alt="Shinjikai word details screen" width="240" /></td>
+  </tr>
+</table>
 
 
 > ⚠️ **Disclaimer**
