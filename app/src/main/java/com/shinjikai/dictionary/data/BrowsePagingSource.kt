@@ -4,12 +4,16 @@ import androidx.paging.PagingSource
 import androidx.paging.PagingState
 
 class BrowsePagingSource(
-    private val yomitanDao: YomitanDao
+    private val yomitanDao: YomitanDao,
+    /** When set, the list starts at the first reading >= this value (kana-row jump). */
+    private val startReading: String? = null
 ) : PagingSource<BrowsePageKey, SearchItem>() {
     override suspend fun load(
         params: LoadParams<BrowsePageKey>
     ): LoadResult<BrowsePageKey, SearchItem> {
-        val key = params.key
+        val key = params.key ?: startReading?.let {
+            BrowsePageKey(reading = it, expression = "", id = Int.MIN_VALUE)
+        }
         val limit = params.loadSize.coerceAtLeast(30)
         return runCatching {
             val rows = yomitanDao.browseTermsAfter(

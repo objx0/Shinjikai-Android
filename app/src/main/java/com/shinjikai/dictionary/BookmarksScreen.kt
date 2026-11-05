@@ -1,5 +1,21 @@
 package com.shinjikai.dictionary
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Surface
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,19 +28,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ClearAll
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Done
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -36,7 +43,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
@@ -84,68 +90,33 @@ fun BookmarksScreenContent(
         return timeFormatter.format(Date(epochMs))
     }
 
-    val headerActions: @Composable () -> Unit = {
-        if (uiState.isEditMode) {
-            val isAllSelected = allIds.isNotEmpty() && uiState.selectedIds.size == allIds.size
-            IconButton(
-                enabled = allIds.isNotEmpty(),
-                onClick = {
-                    if (isAllSelected) {
-                        viewModel.pruneBookmarkSelection(emptySet())
-                    } else {
-                        val missingIds = allIds - uiState.selectedIds
-                        missingIds.forEach(viewModel::toggleBookmarkSelection)
-                    }
-                }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ClearAll,
-                    contentDescription = stringResource(
-                        if (isAllSelected) {
-                            R.string.bookmarks_clear_selection
-                        } else {
-                            R.string.bookmarks_select_all
-                        }
+    val isAllSelected = allIds.isNotEmpty() && uiState.selectedIds.size == allIds.size
+    val header: @Composable () -> Unit = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ShinjikaiTabHeader(
+                title = stringResource(R.string.bookmarks_title),
+                subtitle = stringResource(R.string.bookmarks_count, allIds.size),
+                kanji = stringResource(R.string.bookmarks_kanji)
+            )
+            if (!uiState.isEditMode && allIds.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ShinjikaiActionChip(
+                        text = stringResource(R.string.bookmarks_export_chip),
+                        iconRes = R.drawable.ic_settings_download,
+                        onClick = onExportBookmarks
                     )
-                )
-            }
-            IconButton(
-                enabled = uiState.selectedIds.isNotEmpty(),
-                onClick = {
-                    viewModel.requestDeleteBookmarks(uiState.selectedIds)
+                    ShinjikaiActionChip(
+                        text = stringResource(R.string.bookmarks_select_chip),
+                        iconRes = R.drawable.ic_settings_edit,
+                        onClick = { viewModel.updateBookmarkEditMode(true) }
+                    )
                 }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.bookmarks_delete)
-                )
-            }
-            IconButton(onClick = { viewModel.updateBookmarkEditMode(false) }) {
-                Icon(
-                    imageVector = Icons.Default.Done,
-                    contentDescription = stringResource(R.string.bookmarks_done)
-                )
-            }
-        } else {
-            FilledTonalIconButton(
-                enabled = allIds.isNotEmpty(),
-                onClick = onExportBookmarks
-            ) {
-                Icon(
-                    imageVector = Icons.Default.FileDownload,
-                    contentDescription = stringResource(R.string.bookmarks_export_csv)
-                )
-            }
-            FilledTonalIconButton(
-                enabled = allIds.isNotEmpty(),
-                onClick = { viewModel.updateBookmarkEditMode(true) }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = stringResource(R.string.bookmarks_manage)
-                )
             }
         }
+    }
+
+    BackHandler(enabled = uiState.isEditMode) {
+        viewModel.updateBookmarkEditMode(false)
     }
 
     Scaffold(
@@ -158,112 +129,101 @@ fun BookmarksScreenContent(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = ShinjikaiUi.BottomBarClearance),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    ShinjikaiPageHeader(
-                        title = stringResource(R.string.bookmarks_title),
-                        subtitle = stringResource(R.string.bookmarks_empty),
-                        icon = if (uiState.isEditMode) null else Icons.Default.Bookmark,
-                        action = headerActions
+                    header()
+                    ShinjikaiEmptyState(
+                        title = stringResource(R.string.bookmarks_empty),
+                        message = stringResource(R.string.bookmarks_empty_message),
+                        iconRes = R.drawable.ic_nav_bookmarks
                     )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ShinjikaiEmptyState(
-                            title = stringResource(R.string.bookmarks_empty),
-                            icon = Icons.Default.Bookmark,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    contentPadding = PaddingValues(bottom = ShinjikaiUi.BottomBarClearance),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                        .padding(horizontal = 16.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = ShinjikaiUi.BottomBarClearance),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                item(key = "bookmarks-header") {
-                    ShinjikaiPageHeader(
-                        title = if (uiState.isEditMode) {
-                            stringResource(R.string.bookmarks_selected_count, uiState.selectedIds.size)
-                        } else {
-                            stringResource(R.string.bookmarks_title)
-                        },
-                        subtitle = if (uiState.isEditMode) null else {
-                            stringResource(R.string.bookmarks_manage)
-                        },
-                        icon = if (uiState.isEditMode) null else Icons.Default.Bookmark,
-                        action = headerActions
-                    )
-                }
-                items(
-                    count = bookmarks.itemCount,
-                    key = { index -> bookmarks[index]?.id ?: "bookmark-$index" },
-                    contentType = { "bookmark-entry" }
-                ) { index ->
-                    val bookmark = bookmarks[index] ?: return@items
-                    val previous = if (index > 0) bookmarks.peek(index - 1) else null
-                    val thisDate = localDateOf(bookmark.createdAt)
-                    val prevDate = previous?.let { localDateOf(it.createdAt) }
-                    val showHeader = prevDate == null || prevDate != thisDate
-                    val item = bookmark.item
-                    val isSelected = uiState.selectedIds.contains(bookmark.id)
+                    item(key = "bookmarks-header") { header() }
+                    items(
+                        count = bookmarks.itemCount,
+                        key = { index -> bookmarks[index]?.id ?: "bookmark-$index" },
+                        contentType = { "bookmark-entry" }
+                    ) { index ->
+                        val bookmark = bookmarks[index] ?: return@items
+                        val previous = if (index > 0) bookmarks.peek(index - 1) else null
+                        val thisDate = localDateOf(bookmark.createdAt)
+                        val prevDate = previous?.let { localDateOf(it.createdAt) }
+                        val showHeader = prevDate == null || prevDate != thisDate
+                        val item = bookmark.item
+                        val isSelected = uiState.selectedIds.contains(bookmark.id)
 
-                    Column(
-                        modifier = Modifier,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        if (showHeader) {
-                            Text(
-                                text = thisDate,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-                                modifier = Modifier.padding(start = 6.dp, top = 6.dp)
-                            )
-                        }
-
-                        DictionaryEntryCard(
-                            item = item,
-                            onClick = {
-                                if (uiState.isEditMode) {
-                                    viewModel.toggleBookmarkSelection(bookmark.id)
-                                } else {
-                                    onOpenBookmarkDetails(item)
-                                }
-                            },
-                            previewMaxLines = if (uiState.useOfflineMode || uiState.activeCategoryId != null) 1 else Int.MAX_VALUE,
-                            previewText = if (uiState.useOfflineMode) null else item.meaningSummary,
-                            footer = {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.bookmarks_added_at, localTimeLabel(bookmark.createdAt)),
-                                        modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                        textAlign = TextAlign.Right
-                                    )
+                        Column {
+                            if (showHeader) {
+                                ShinjikaiSectionCaption(text = thisDate)
+                            }
+                            DictionaryEntryCard(
+                                item = item,
+                                onClick = {
                                     if (uiState.isEditMode) {
-                                        Checkbox(
-                                            checked = isSelected,
-                                            onCheckedChange = { viewModel.toggleBookmarkSelection(bookmark.id) }
+                                        viewModel.toggleBookmarkSelection(bookmark.id)
+                                    } else {
+                                        onOpenBookmarkDetails(item)
+                                    }
+                                },
+                                previewMaxLines = if (uiState.useOfflineMode || uiState.activeCategoryId != null) 1 else Int.MAX_VALUE,
+                                previewText = if (uiState.useOfflineMode) null else item.meaningSummary,
+                                highlighted = uiState.isEditMode && isSelected,
+                                footer = {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            painter = painterResource(R.drawable.ic_settings_clock),
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(14.dp)
                                         )
+                                        Text(
+                                            text = stringResource(R.string.bookmarks_added_at, localTimeLabel(bookmark.createdAt)),
+                                            modifier = Modifier.weight(1f),
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (uiState.isEditMode) {
+                                            Checkbox(
+                                                checked = isSelected,
+                                                onCheckedChange = { viewModel.toggleBookmarkSelection(bookmark.id) }
+                                            )
+                                        }
                                     }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
-                }
+            }
+            if (uiState.isEditMode) {
+                BookmarksEditBar(
+                    selectedCount = uiState.selectedIds.size,
+                    isAllSelected = isAllSelected,
+                    onDone = { viewModel.updateBookmarkEditMode(false) },
+                    onToggleSelectAll = {
+                        if (isAllSelected) {
+                            viewModel.pruneBookmarkSelection(emptySet())
+                        } else {
+                            (allIds - uiState.selectedIds).forEach(viewModel::toggleBookmarkSelection)
+                        }
+                    },
+                    onDelete = { viewModel.requestDeleteBookmarks(uiState.selectedIds) },
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
             }
 
         }
@@ -280,21 +240,115 @@ fun BookmarksScreenContent(
                 stringResource(R.string.bookmarks_delete_count, idsList.size)
             }
 
-            AlertDialog(
+            ShinjikaiDialog(
                 onDismissRequest = { viewModel.pendingBookmarkDeletionIds = null },
-                title = { Text(stringResource(R.string.bookmarks_delete_confirmation_title)) },
-                text = { Text(label) },
-                confirmButton = {
-                    TextButton(onClick = { viewModel.deleteBookmarks(idsList) }) {
-                        Text(stringResource(R.string.bookmarks_delete))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { viewModel.pendingBookmarkDeletionIds = null }) {
-                        Text(stringResource(R.string.action_cancel))
+                title = stringResource(R.string.bookmarks_delete_confirmation_title),
+                message = label,
+                iconRes = R.drawable.ic_settings_trash,
+                confirmLabel = stringResource(R.string.bookmarks_delete),
+                onConfirm = { viewModel.deleteBookmarks(idsList) },
+                destructive = true
+            )
+        }
+    }
+}
+
+@Composable
+private fun BookmarksEditBar(
+    selectedCount: Int,
+    isAllSelected: Boolean,
+    onDone: () -> Unit,
+    onToggleSelectAll: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = ShinjikaiUi.PillShape,
+            color = colors.surfaceContainerHigh,
+            tonalElevation = 3.dp,
+            shadowElevation = 8.dp,
+            border = BorderStroke(1.dp, colors.outlineVariant.copy(alpha = 0.5f)),
+            modifier = Modifier
+                .widthIn(max = 480.dp)
+                .fillMaxWidth()
+                .height(64.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    onClick = onDone,
+                    shape = ShinjikaiUi.PillShape,
+                    color = colors.primary,
+                    contentColor = colors.onPrimary
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .height(48.dp)
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_settings_check),
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.bookmarks_done),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
-            )
+                Text(
+                    text = stringResource(R.string.bookmarks_selected_count, selectedCount),
+                    modifier = Modifier
+                        .weight(1f)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurface,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1
+                )
+                IconButton(onClick = onToggleSelectAll, modifier = Modifier.size(48.dp)) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_settings_select_all),
+                        contentDescription = stringResource(
+                            if (isAllSelected) R.string.bookmarks_clear_selection else R.string.bookmarks_select_all
+                        ),
+                        tint = colors.onSurface,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Surface(
+                    onClick = onDelete,
+                    enabled = selectedCount > 0,
+                    shape = CircleShape,
+                    color = if (selectedCount > 0) colors.errorContainer else colors.surfaceVariant,
+                    contentColor = if (selectedCount > 0) colors.onErrorContainer else colors.onSurface.copy(alpha = 0.38f),
+                    modifier = Modifier.size(48.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_settings_trash),
+                            contentDescription = stringResource(R.string.bookmarks_delete),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

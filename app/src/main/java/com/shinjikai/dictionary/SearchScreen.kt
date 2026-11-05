@@ -1,5 +1,12 @@
 package com.shinjikai.dictionary
 
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import java.util.Locale
+import java.util.Date
+import java.text.SimpleDateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,10 +24,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.tween
@@ -33,11 +36,8 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,6 +62,25 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
@@ -71,6 +90,8 @@ import com.shinjikai.dictionary.ui.ResultMode
 import com.shinjikai.dictionary.ui.SearchUiState
 import com.shinjikai.dictionary.ui.ShinjikaiViewModel
 import kotlinx.coroutines.flow.Flow
+
+private val SearchCardShape = RoundedCornerShape(28.dp)
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -83,7 +104,8 @@ fun SearchScreenContent(
     uiState: SearchUiState,
     searchResults: Flow<PagingData<SearchItem>>,
     onRetryBundledImport: () -> Unit,
-    onOpenDetails: (SearchItem) -> Unit
+    onOpenDetails: (SearchItem) -> Unit,
+    onSpeakJapanese: (String) -> Unit = {}
 ) {
     val focusManager = LocalFocusManager.current
     val lazyResults = searchResults.collectAsLazyPagingItems()
@@ -142,14 +164,13 @@ fun SearchScreenContent(
                     .padding(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                ShinjikaiPageHeader(
+                SearchBrandHeader(
                     title = appName,
                     subtitle = if (hasOfflineDictionary) {
                         stringResource(R.string.browse_count, uiState.offlineTermCount)
                     } else {
                         stringResource(R.string.browse_subtitle)
-                    },
-                    icon = Icons.AutoMirrored.Filled.MenuBook
+                    }
                 )
 
                 if (uiState.activeCategoryName == null) {
@@ -166,6 +187,16 @@ fun SearchScreenContent(
                         onClearCategory = { viewModel.clearCategorySearch() },
                         focusRequester = searchFocusRequester,
                         onFieldReady = { isSearchFieldReady = true },
+                        recentSearches = if (showLanding) {
+                            uiState.recentSearches.take(3).map { it.term }
+                        } else {
+                            emptyList()
+                        },
+                        onRecentClick = { recent ->
+                            viewModel.term = recent
+                            focusManager.clearFocus()
+                            viewModel.runSearchForTerm(recent)
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
                 } else {
@@ -235,31 +266,41 @@ fun SearchScreenContent(
                                     )
                                 }
 
-                                if (useOfflineMode && uiState.offlinePreviewItems.isNotEmpty()) {
+                                val wordOfTheDay = uiState.wordOfTheDay
+                                if (useOfflineMode && (wordOfTheDay != null || uiState.offlinePreviewItems.isNotEmpty())) {
                                     LazyColumn(
                                         modifier = Modifier.weight(1f),
                                         contentPadding = PaddingValues(
                                             top = 4.dp,
                                             bottom = ShinjikaiUi.BottomBarClearance
                                         ),
-                                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        item(key = "preview-label") {
-                                            SectionLabel(
-                                                text = stringResource(R.string.browse_subtitle),
-                                                modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp)
-                                            )
+                                        if (wordOfTheDay != null) {
+                                            item(key = "word-of-the-day", contentType = "word-of-the-day") {
+                                                WordOfTheDayCard(
+                                                    item = wordOfTheDay,
+                                                    isBookmarked = uiState.isWordOfTheDayBookmarked,
+                                                    onOpen = { onOpenDetails(wordOfTheDay) },
+                                                    onSpeak = {
+                                                        onSpeakJapanese(
+                                                            wordOfTheDay.kana.ifBlank { wordOfTheDay.primaryWriting }
+                                                        )
+                                                    },
+                                                    onToggleBookmark = { viewModel.toggleBookmark(wordOfTheDay) }
+                                                )
+                                            }
                                         }
-                                        items(
-                                            items = uiState.offlinePreviewItems,
-                                            key = { it.id },
-                                            contentType = { "dictionary-entry" }
-                                        ) { item ->
-                                            OfflinePreviewCard(
-                                                item = item,
-                                                onClick = { onOpenDetails(item) },
-                                                modifier = Modifier
-                                            )
+                                        if (uiState.offlinePreviewItems.isNotEmpty()) {
+                                            item(key = "landing-picks-header", contentType = "section-header") {
+                                                LandingPicksHeader(onShuffle = viewModel::shuffleLandingPicks)
+                                            }
+                                            item(key = "landing-picks", contentType = "landing-picks") {
+                                                LandingPicksCard(
+                                                    items = uiState.offlinePreviewItems,
+                                                    onOpen = onOpenDetails
+                                                )
+                                            }
                                         }
                                     }
                                 } else if (useOfflineMode) {
@@ -288,7 +329,7 @@ fun SearchScreenContent(
                             ) {
                                 ShinjikaiEmptyState(
                                     title = stringResource(R.string.search_no_results),
-                                    icon = Icons.Default.Search,
+                                    iconRes = R.drawable.ic_nav_search,
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 if (!useOfflineMode && uiState.activeCategoryId == null) {
@@ -315,8 +356,13 @@ fun SearchScreenContent(
                                     top = 4.dp,
                                     bottom = ShinjikaiUi.BottomBarClearance
                                 ),
-                                verticalArrangement = Arrangement.spacedBy(5.dp)
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
+                                if (lazyResults.itemCount > 0) {
+                                    item(key = "results-label") {
+                                        SearchSectionLabel(text = stringResource(R.string.search_results_title))
+                                    }
+                                }
                                 items(
                                     count = lazyResults.itemCount,
                                     key = { index -> lazyResults[index]?.id ?: "result-$index" },
@@ -328,7 +374,10 @@ fun SearchScreenContent(
                                         onClick = { onOpenDetails(item) },
                                         modifier = Modifier
                                             .fillMaxWidth(),
-                                        previewMaxLines = if (uiState.activeCategoryId != null) 1 else 2
+                                        previewMaxLines = if (uiState.activeCategoryId != null) 1 else 2,
+                                        highlighted = index == 0 &&
+                                            uiState.activeCategoryId == null &&
+                                            uiState.term.isNotBlank()
                                     )
                                 }
 
@@ -438,6 +487,8 @@ private fun SearchTopDock(
     onClearCategory: () -> Unit,
     focusRequester: FocusRequester,
     onFieldReady: () -> Unit,
+    recentSearches: List<String>,
+    onRecentClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -450,60 +501,194 @@ private fun SearchTopDock(
         }
     }
 
+    val colors = MaterialTheme.colorScheme
+    val clearLabel = stringResource(R.string.nav_clear)
+    Surface(
+        modifier = modifier.padding(vertical = if (isImeVisible) 2.dp else 0.dp),
+        shape = SearchCardShape,
+        color = colors.surface,
+        border = BorderStroke(1.dp, colors.outlineVariant)
+    ) {
         Column(
-            modifier = modifier.padding(vertical = if (isImeVisible) 2.dp else 0.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-        activeCategoryName?.let {
-            CategorySearchBanner(
-                label = it,
-                onClear = onClearCategory
-            )
-        }
+            activeCategoryName?.let {
+                CategorySearchBanner(
+                    label = it,
+                    onClear = onClearCategory
+                )
+            }
 
-        OutlinedTextField(
-            value = term,
-            onValueChange = onTermChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .focusRequester(focusRequester)
-                .onGloballyPositioned { onFieldReady() },
-            singleLine = true,
-            placeholder = {
-                Text(
-                    text = stringResource(R.string.search_hint),
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            },
-            shape = MaterialTheme.shapes.extraLarge,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { onRunSearch() }),
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = stringResource(R.string.nav_search)
-                )
-            },
-            trailingIcon = {
-                if (term.isNotEmpty()) {
-                    IconButton(onClick = onClearTerm) {
+            BasicTextField(
+                value = term,
+                onValueChange = onTermChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(focusRequester)
+                    .onGloballyPositioned { onFieldReady() },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    color = colors.onSurface,
+                    fontSize = 15.sp
+                ),
+                cursorBrush = SolidColor(colors.primary),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onRunSearch() }),
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .background(colors.background, ShinjikaiUi.PillShape)
+                            .padding(start = 16.dp, end = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = stringResource(R.string.nav_clear)
+                            painter = painterResource(R.drawable.ic_nav_search),
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(22.dp)
                         )
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (term.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.search_hint),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            innerTextField()
+                        }
+                        if (term.isNotEmpty()) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(colors.surfaceVariant)
+                                    .clickable(role = Role.Button, onClick = onClearTerm)
+                                    .semantics { contentDescription = clearLabel },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_settings_close),
+                                    contentDescription = null,
+                                    tint = colors.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
                     }
                 }
-            },
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface
             )
+
+            if (recentSearches.isNotEmpty()) {
+                Column(
+                    modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.search_recent_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onSurfaceVariant
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        recentSearches.forEach { recent ->
+                            RecentSearchChip(term = recent, onClick = { onRecentClick(recent) })
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentSearchChip(term: String, onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .height(40.dp)
+            .clip(ShinjikaiUi.PillShape)
+            .background(colors.surfaceVariant.copy(alpha = 0.45f))
+            .border(1.dp, colors.outlineVariant, ShinjikaiUi.PillShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_nav_history),
+            contentDescription = null,
+            tint = colors.onSurfaceVariant,
+            modifier = Modifier.size(14.dp)
+        )
+        Text(
+            text = term,
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSecondaryContainer,
+            maxLines = 1
         )
     }
+}
+
+@Composable
+private fun SearchBrandHeader(
+    title: String,
+    subtitle: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, top = 8.dp, end = 4.dp, bottom = 2.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = title,
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            text = stringResource(R.string.app_name_kanji),
+            modifier = Modifier.clearAndSetSemantics { },
+            style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Default),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+        )
+    }
+}
+
+@Composable
+private fun SearchSectionLabel(text: String) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 2.dp)
+            .semantics { heading() },
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable
@@ -553,16 +738,248 @@ private fun LandingSuggestions(
     }
 }
 
+/** Big landing card: one common word that stays the same for the whole day. */
 @Composable
-private fun OfflinePreviewCard(
+private fun WordOfTheDayCard(
     item: SearchItem,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    isBookmarked: Boolean,
+    onOpen: () -> Unit,
+    onSpeak: () -> Unit,
+    onToggleBookmark: () -> Unit
 ) {
-    DictionaryEntryCard(
-        item = item,
-        onClick = onClick,
-        modifier = modifier,
-        previewMaxLines = 2
-    )
+    val colors = MaterialTheme.colorScheme
+    val headword = item.primaryWriting.ifBlank { item.kana }
+    val mark = remember(headword) { kanjiWatermarkChar(headword) }
+    val dateLabel = remember {
+        SimpleDateFormat("d MMMM", Locale.forLanguageTag("ar-u-nu-latn")).format(Date())
+    }
+    Surface(
+        onClick = onOpen,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = colors.surface,
+        border = BorderStroke(1.dp, colors.outlineVariant)
+    ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            mark?.let { KanjiWatermark(mark = it, fontSize = 120.sp) }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.search_word_of_day),
+                        modifier = Modifier
+                            .background(colors.primaryContainer, ShinjikaiUi.PillShape)
+                            .padding(horizontal = 10.dp, vertical = 3.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onPrimaryContainer
+                    )
+                    Text(
+                        text = dateLabel,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Bottom
+                ) {
+                    HeadwordFuriganaText(
+                        text = headword,
+                        reading = item.kana,
+                        parts = item.writings.firstOrNull()?.parts,
+                        modifier = Modifier.weight(1f),
+                        baseStyle = MaterialTheme.typography.headlineMedium.copy(
+                            fontSize = 34.sp,
+                            lineHeight = 42.sp,
+                            fontWeight = FontWeight.Bold
+                        ),
+                        rubyStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
+                        rubyColor = colors.primary,
+                        textAlign = TextAlign.End,
+                        autoFit = true
+                    )
+                    CommonnessIndicator(difficulty = item.difficulty)
+                }
+                if (item.meaningSummary.isNotBlank()) {
+                    Text(
+                        text = forceRtlText(item.meaningSummary),
+                        modifier = Modifier.fillMaxWidth(),
+                        style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Rtl),
+                        color = colors.onSurface.copy(alpha = 0.86f),
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LandingPillButton(
+                        text = stringResource(R.string.detail_pronounce),
+                        iconRes = R.drawable.ic_detail_speaker,
+                        primary = true,
+                        onClick = onSpeak
+                    )
+                    LandingPillButton(
+                        text = stringResource(if (isBookmarked) R.string.detail_saved else R.string.detail_save),
+                        iconRes = if (isBookmarked) R.drawable.ic_nav_bookmarks_filled else R.drawable.ic_nav_bookmarks,
+                        primary = false,
+                        onClick = onToggleBookmark
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LandingPillButton(
+    text: String,
+    iconRes: Int,
+    primary: Boolean,
+    onClick: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val contentColor = if (primary) colors.onPrimary else colors.onSurface
+    Row(
+        modifier = Modifier
+            .heightIn(min = 40.dp)
+            .clip(ShinjikaiUi.PillShape)
+            .then(
+                if (primary) {
+                    Modifier.background(colors.primary, ShinjikaiUi.PillShape)
+                } else {
+                    Modifier.border(1.dp, colors.outlineVariant, ShinjikaiUi.PillShape)
+                }
+            )
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = contentColor,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Bold,
+            color = contentColor
+        )
+    }
+}
+
+@Composable
+private fun LandingPicksHeader(onShuffle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    val shuffleLabel = stringResource(R.string.search_shuffle_words_a11y)
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SearchSectionLabel(text = stringResource(R.string.search_more_words))
+        Row(
+            modifier = Modifier
+                .heightIn(min = 36.dp)
+                .clip(ShinjikaiUi.PillShape)
+                .background(colors.surface, ShinjikaiUi.PillShape)
+                .border(1.dp, colors.outlineVariant, ShinjikaiUi.PillShape)
+                .clickable(role = Role.Button, onClickLabel = shuffleLabel, onClick = onShuffle)
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_browse_shuffle),
+                contentDescription = null,
+                tint = colors.primary,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = stringResource(R.string.search_shuffle_words),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.primary
+            )
+        }
+    }
+}
+
+@Composable
+private fun LandingPicksCard(
+    items: List<SearchItem>,
+    onOpen: (SearchItem) -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        color = colors.surface,
+        border = BorderStroke(1.dp, colors.outlineVariant)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)) {
+            items.forEachIndexed { index, item ->
+                val headword = item.primaryWriting.ifBlank { item.kana }
+                val reading = item.kana.takeIf { it.isNotBlank() && it != headword }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .clickable(role = Role.Button) { onOpen(item) }
+                        .heightIn(min = 56.dp)
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.widthIn(min = 72.dp, max = 160.dp)) {
+                        if (reading != null) {
+                            Text(
+                                text = reading,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Text(
+                            text = headword,
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontSize = 20.sp,
+                                fontFamily = FontFamily.Default
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = forceRtlText(item.meaningSummary),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Rtl),
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (index < items.lastIndex) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        color = colors.outlineVariant
+                    )
+                }
+            }
+        }
+    }
 }

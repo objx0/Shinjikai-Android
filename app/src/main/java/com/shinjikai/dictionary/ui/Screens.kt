@@ -10,7 +10,8 @@ enum class Screen {
     Bookmarks,
     Settings,
     LocalDictionary,
-    AnkiExporterSettings
+    AnkiExporterSettings,
+    Category
 }
 
 enum class DetailSource(val value: String) {
@@ -26,7 +27,8 @@ enum class AppRoute(val route: String, val screen: Screen) {
     Bookmarks("bookmarks", Screen.Bookmarks),
     Settings("settings", Screen.Settings),
     LocalDictionary("local-dictionary", Screen.LocalDictionary),
-    AnkiExporterSettings("anki-exporter-settings", Screen.AnkiExporterSettings);
+    AnkiExporterSettings("anki-exporter-settings", Screen.AnkiExporterSettings),
+    Category("category", Screen.Category);
 
     companion object {
         const val SEARCH_QUERY_ARG = "query"

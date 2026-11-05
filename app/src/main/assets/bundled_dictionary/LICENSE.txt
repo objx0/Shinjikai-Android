@@ -1,0 +1,13 @@
+Shinjikai dictionary data and images
+
+Dataset source: https://github.com/1Selxo/Shinjikai
+The dataset and images are made available under the Creative Commons
+Attribution 4.0 International license (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/
+
+Attribution: Shinjikai dictionary dataset, provided by 1Selxo/Shinjikai.
+Changes: The data files were compressed, and the images were processed and
+packaged for use in the Shinjikai Android app.
+
+This notice applies to the bundled Shinjikai dictionary data and images. It
+does not change the licenses of the app source code or other third-party code.

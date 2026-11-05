@@ -1,11 +1,12 @@
 package com.shinjikai.dictionary
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -16,14 +17,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.shinjikai.dictionary.data.SearchItem
+
+private val EntryCardShape = RoundedCornerShape(28.dp)
 
 @Composable
 fun DictionaryEntryCard(
@@ -32,6 +35,7 @@ fun DictionaryEntryCard(
     modifier: Modifier = Modifier,
     previewMaxLines: Int = 2,
     previewText: String? = null,
+    highlighted: Boolean = false,
     footer: (@Composable () -> Unit)? = null
 ) {
     val headword = remember(item.primaryWriting, item.kana) {
@@ -42,19 +46,22 @@ fun DictionaryEntryCard(
     }
     if (headword.isBlank()) return
 
+    val colors = MaterialTheme.colorScheme
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick),
-        shape = ShinjikaiUi.CompactShape,
-        color = MaterialTheme.colorScheme.surface,
-        border = ShinjikaiUi.cardBorder(alpha = 0.18f)
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        shape = EntryCardShape,
+        color = if (highlighted) colors.surfaceVariant.copy(alpha = 0.45f) else colors.surface,
+        border = BorderStroke(
+            1.dp,
+            if (highlighted) colors.primary.copy(alpha = 0.35f) else colors.outlineVariant
+        )
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 11.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.End
         ) {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
@@ -63,7 +70,7 @@ fun DictionaryEntryCard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CommonnessBadge(difficulty = item.difficulty, starsOnly = true)
+                    CommonnessIndicator(difficulty = item.difficulty)
                     Column(
                         modifier = Modifier.weight(1f),
                         horizontalAlignment = Alignment.End,
@@ -74,8 +81,12 @@ fun DictionaryEntryCard(
                             reading = item.kana,
                             parts = item.writings.firstOrNull()?.parts,
                             modifier = Modifier.fillMaxWidth(),
-                            baseStyle = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-                            rubyStyle = MaterialTheme.typography.labelSmall,
+                            baseStyle = MaterialTheme.typography.headlineSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = if (highlighted) 40.sp else 30.sp,
+                                lineHeight = if (highlighted) 52.sp else 39.sp
+                            ),
+                            rubyStyle = MaterialTheme.typography.labelMedium.copy(color = colors.onSurfaceVariant),
                             textAlign = TextAlign.End
                         )
                     }
@@ -83,14 +94,18 @@ fun DictionaryEntryCard(
             }
 
             if (preview.isNotBlank()) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.34f))
+                HorizontalDivider(color = colors.outlineVariant)
                 Text(
                     text = forceRtlText(preview),
                     modifier = Modifier.fillMaxWidth(),
-                    style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Rtl),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        textDirection = TextDirection.Rtl,
+                        fontSize = 15.sp,
+                        lineHeight = 26.sp
+                    ),
+                    color = colors.onSurfaceVariant,
                     textAlign = TextAlign.Right,
-                    maxLines = previewMaxLines,
+                    maxLines = if (highlighted) maxOf(previewMaxLines, 4) else previewMaxLines,
                     overflow = TextOverflow.Ellipsis
                 )
             }

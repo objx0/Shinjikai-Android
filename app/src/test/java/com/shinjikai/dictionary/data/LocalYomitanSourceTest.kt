@@ -159,6 +159,16 @@ class LocalYomitanSourceTest {
 
         override suspend fun loadPreviewTerms(limit: Int): List<YomitanTermListRow> = emptyList()
 
+        override suspend fun countFeaturedTerms(minDifficulty: Int): Int = 0
+
+        override suspend fun loadFeaturedTermAt(minDifficulty: Int, offset: Int): YomitanTermListRow? = null
+
+        override suspend fun loadRandomFeaturedTerms(
+            minDifficulty: Int,
+            excludeId: Int,
+            limit: Int
+        ): List<YomitanTermListRow> = emptyList()
+
         override suspend fun loadRandomTerm(): YomitanTermListRow? = directSearchResults.firstOrNull()
 
         override suspend fun upsertMeta(meta: YomitanMetaEntity) = Unit

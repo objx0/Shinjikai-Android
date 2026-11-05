@@ -231,6 +231,35 @@ interface YomitanDao {
     )
     suspend fun loadPreviewTerms(limit: Int = 6): List<YomitanTermListRow>
 
+    /** Terms eligible for the search landing (word of the day / suggestions). */
+    @Query(
+        """
+        SELECT COUNT(*) FROM yomitan_terms
+        WHERE enabled = 1 AND expression <> '' AND difficulty >= :minDifficulty
+        """
+    )
+    suspend fun countFeaturedTerms(minDifficulty: Int): Int
+
+    @Query(
+        """
+        SELECT id, expression, reading, glossary, difficulty FROM yomitan_terms
+        WHERE enabled = 1 AND expression <> '' AND difficulty >= :minDifficulty
+        ORDER BY id ASC
+        LIMIT 1 OFFSET :offset
+        """
+    )
+    suspend fun loadFeaturedTermAt(minDifficulty: Int, offset: Int): YomitanTermListRow?
+
+    @Query(
+        """
+        SELECT id, expression, reading, glossary, difficulty FROM yomitan_terms
+        WHERE enabled = 1 AND expression <> '' AND difficulty >= :minDifficulty AND id <> :excludeId
+        ORDER BY RANDOM()
+        LIMIT :limit
+        """
+    )
+    suspend fun loadRandomFeaturedTerms(minDifficulty: Int, excludeId: Int, limit: Int): List<YomitanTermListRow>
+
     @Query(
         """
         SELECT id, expression, reading, glossary, difficulty FROM yomitan_terms

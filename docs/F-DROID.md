@@ -1,62 +1,51 @@
-## F-Droid submission guide for Shinjikai Dictionary
+## F-Droid publication status
 
 Package ID: `com.shinjikai.dictionary`
 
-This project is close to F-Droid-compatible, but it is not submission-ready yet. The remaining work is mostly around repository metadata and review evidence, not large code changes.
+Existing request: [F-Droid RFP #3650](https://gitlab.com/fdroid/rfp/-/work_items/3650)
 
-### Current status
+The request points to the old GitHub URL `obj44/shinjikai`, which now redirects to
+the current source repository: <https://github.com/objx0/Shinjikai-Android>. The
+request description should be refreshed before asking F-Droid maintainers to
+package a release.
 
-What already looks good:
+### Current app details
 
-- The app is built from Gradle source in this repository.
-- Dependencies are fetched from `google()` and `mavenCentral()`.
-- No Firebase, Google Play Services, ads SDKs, or analytics SDKs are present in the app module.
-- The app can function in online mode using the public `https://shinjikai.app/` API.
-- The application source is now licensed under MIT.
-- The optional offline dictionary dataset is MIT-licensed.
+- App source is MIT-licensed (`LICENSE`).
+- The current app is an offline-first Japanese-Arabic dictionary. It bundles
+  dictionary data and images, supports local Yomitan imports, bookmarks,
+  history, and Anki export.
+- Online access is used by some app features. The app does not require a
+  Firebase configuration to build; Firebase dependencies are included only
+  when a local `app/google-services.json` exists.
+- The app includes Japanese deinflection code marked
+  `GPL-3.0-or-later` in `JapaneseDeinflector.kt`; retain its attribution and
+  license when preparing the F-Droid metadata.
+- Fastlane English listing text exists, as do two phone screenshots under
+  `fastlane/metadata/android/en-US/images/phoneScreenshots/`.
+- The checked-out app version is `1.13` (version code 13), but the newest Git
+  tag in this checkout is `v1.10`. F-Droid needs a stable public source ref
+  that matches the version being packaged.
 
-What still blocks or may delay acceptance:
+### Bundled data license
 
-- F-Droid listing screenshots still need to be supplied.
-- The offline dictionary import downloads a third-party ZIP from GitHub at runtime, so reviewers may still ask for a clear note about the dataset source and license.
+The rights holder has confirmed in writing that the bundled dictionary data
+and images may be redistributed under CC BY 4.0. The notice is included at
+`app/src/main/assets/bundled_dictionary/LICENSE.txt`. Keep the email as the
+permission record and provide it to F-Droid reviewers if requested; do not
+publish private correspondence without permission. The app source remains MIT,
+and Japanese deinflection code remains GPL-3.0-or-later.
 
-### Hard requirements before submitting
+The previous submission guide also described the dataset as optional and
+downloaded at runtime; both statements are stale. The current app bundles the
+dataset, and the asset-refresh script downloads it during development.
 
-1. Add screenshots.
-   Put at least two phone screenshots under:
+### Suggested RFP update
 
-   - `fastlane/metadata/android/en-US/images/phoneScreenshots/`
+After preparing a matching public release tag, add a comment to RFP #3650 with
+the current repository URL, version/tag, package ID, build instructions, and
+corrected app description. State clearly which features access the network
+and list the licenses for app code, deinflection code, and dictionary data.
 
-2. Tag a public release in GitHub.
-   F-Droid usually packages from a tagged source release. The tag should match the app version in `app/build.gradle.kts`.
-
-### Suggested review notes for F-Droid
-
-When you open the F-Droid inclusion request, include notes like these:
-
-- The app has no nonfree SDK dependencies.
-- Network access is used for the public Shinjikai dictionary API.
-- Offline import is user-initiated from the Settings screen.
-- The offline import downloads a third-party dictionary archive only when the user requests it.
-- The optional offline dictionary dataset is MIT-licensed.
-- The offline dataset currently referenced by the app is sourced from:
-  `https://github.com/a-hamdi/japanesearabic`
-
-### Basic submission flow
-
-1. Push the repository to a public GitHub repo.
-2. Add screenshots.
-3. Create a signed Git tag for the release, for example `v1.1`.
-4. Verify the project builds cleanly from source with Gradle.
-5. Open an inclusion request in the F-Droid Data repository.
-6. In the request, provide:
-   - source repo URL
-   - package ID `com.shinjikai.dictionary`
-   - app license: MIT
-   - build instructions if reviewers need anything unusual
-   - explanation of the optional offline dictionary import
-   - note that the referenced offline dataset is MIT-licensed
-
-### Recommended next improvement
-
-If you want the smoothest F-Droid review, replace the hardcoded third-party dictionary download URL with a document picker import flow. That removes the biggest remaining review ambiguity in the current app.
+The app build is Gradle-based. F-Droid should build from the source tag rather
+than use the signed APK published through GitHub Releases.

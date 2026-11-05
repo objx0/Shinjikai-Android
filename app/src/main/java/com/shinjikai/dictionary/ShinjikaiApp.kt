@@ -1,5 +1,31 @@
 package com.shinjikai.dictionary
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -23,8 +49,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,28 +62,14 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.DownloadForOffline
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -72,14 +82,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -241,6 +248,19 @@ fun ShinjikaiApp(
                                     focusManager.clearFocus()
                                     viewModel.prefetchDetails(it.id)
                                     navController.navigate(buildDetailRoute(it.id))
+                                },
+                                onSpeakJapanese = { text ->
+                                    japaneseTextToSpeech.speak(
+                                        text = text,
+                                        utteranceId = "landing-word-$text",
+                                        onUnavailable = {
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.detail_japanese_audio_unavailable),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    )
                                 }
                             )
                         }
@@ -339,6 +359,24 @@ fun ShinjikaiApp(
                             )
                         }
                         composable(
+                            AppRoute.Category.route,
+                            enterTransition = { detailEnterTransition() },
+                            exitTransition = { detailExitTransition() },
+                            popEnterTransition = { detailPopEnterTransition() },
+                            popExitTransition = { detailPopExitTransition() }
+                        ) {
+                            CategoryResultsScreen(
+                                categoryName = viewModel.categoryScreenName.orEmpty(),
+                                results = viewModel.categoryResults,
+                                onOpenDetails = {
+                                    focusManager.clearFocus()
+                                    viewModel.prefetchDetails(it.id)
+                                    navController.navigate(buildDetailRoute(it.id))
+                                },
+                                onGoBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(
                             AppRoute.AnkiExporterSettings.route,
                             enterTransition = { detailEnterTransition() },
                             exitTransition = { detailExitTransition() },
@@ -380,7 +418,7 @@ fun ShinjikaiApp(
                                 ?.let { value -> DetailSource.entries.firstOrNull { it.value == value } }
                                 ?: DetailSource.Online
                             LaunchedEffect(wordId, source) {
-                                if (wordId > 0) {
+                                if (wordId != 0) {
                                     when (source) {
                                         DetailSource.Bookmark -> viewModel.openBookmarkedDetailsById(wordId)
                                         DetailSource.Online -> viewModel.openDetailsById(wordId)
@@ -409,10 +447,8 @@ fun ShinjikaiApp(
                                 viewModel = viewModel,
                                 onGoBack = { navController.popBackStack() },
                                 onOpenCategorySearch = { categoryId, categoryName ->
-                                    viewModel.runCategorySearch(categoryId, categoryName)
-                                    navController.navigate(AppRoute.Search.route) {
-                                        launchSingleTop = true
-                                    }
+                                    viewModel.openCategory(categoryId, categoryName)
+                                    navController.navigate(AppRoute.Category.route)
                                 },
                                 onOpenGlossaryReference = { referenceId ->
                                     viewModel.prefetchDetails(referenceId)
@@ -435,7 +471,10 @@ fun ShinjikaiApp(
                         }
                     }
 
-                    if (currentScreen in setOf(Screen.Search, Screen.Browse, Screen.History, Screen.Bookmarks, Screen.Settings)) {
+                    if (
+                        currentScreen in setOf(Screen.Search, Screen.Browse, Screen.History, Screen.Bookmarks, Screen.Settings) &&
+                        !(currentScreen == Screen.Bookmarks && viewModel.isBookmarkEditMode)
+                    ) {
                         PrimaryBottomBar(
                             modifier = Modifier.align(Alignment.BottomCenter),
                             currentScreen = currentScreen ?: Screen.Search,
@@ -461,6 +500,7 @@ fun ShinjikaiApp(
 
                     if (viewModel.settingsUiState.showIntroduction) {
                         IntroductionScreen(
+                            entryCount = viewModel.settingsUiState.offlineTermCount,
                             onFinish = viewModel::dismissIntroduction,
                             onOpenOfflineSetup = {
                                 viewModel.dismissIntroduction()
@@ -474,197 +514,569 @@ fun ShinjikaiApp(
     }
 }
 
+private data class IntroPage(
+    val titleRes: Int,
+    val bodyRes: Int
+)
+
+private val IntroPages = listOf(
+    IntroPage(R.string.intro_page_1_title, R.string.intro_page_1_body),
+    IntroPage(R.string.intro_page_2_title, R.string.intro_page_2_body),
+    IntroPage(R.string.intro_page_3_title, R.string.intro_page_3_body)
+)
+
+private val IntroTileShape = RoundedCornerShape(22.dp)
+
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 private fun IntroductionScreen(
+    entryCount: Int,
     onFinish: () -> Unit,
     onOpenOfflineSetup: () -> Unit
 ) {
-    val onboardingPages = remember {
-        listOf(
-            OnboardingPage(
-                icon = Icons.Default.Search,
-                eyebrowRes = R.string.intro_page_1_eyebrow,
-                titleRes = R.string.intro_page_1_title,
-                bodyRes = R.string.intro_page_1_body
-            ),
-            OnboardingPage(
-                icon = Icons.AutoMirrored.Filled.MenuBook,
-                eyebrowRes = R.string.intro_page_2_eyebrow,
-                titleRes = R.string.intro_page_2_title,
-                bodyRes = R.string.intro_page_2_body
-            ),
-            OnboardingPage(
-                icon = Icons.Default.DownloadForOffline,
-                eyebrowRes = R.string.intro_page_3_eyebrow,
-                titleRes = R.string.intro_page_3_title,
-                bodyRes = R.string.intro_page_3_body
-            )
-        )
-    }
-    val pagerState = rememberPagerState(pageCount = { onboardingPages.size })
+    val pagerState = rememberPagerState(pageCount = { IntroPages.size })
     val coroutineScope = rememberCoroutineScope()
     val currentPage = pagerState.currentPage
-    val isLastPage = currentPage == onboardingPages.lastIndex
+    val isLastPage = currentPage == IntroPages.lastIndex
+    val colors = MaterialTheme.colorScheme
 
-    Scaffold { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 24.dp, vertical = 28.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp)
-        ) {
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.intro_app_name),
-                style = MaterialTheme.typography.displaySmall
-            )
-            Text(
-                text = stringResource(R.string.intro_title),
-                style = MaterialTheme.typography.headlineMedium
-            )
-
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) { page ->
-                IntroPageCard(page = onboardingPages[page], accentIndex = page)
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                onboardingPages.forEachIndexed { index, _ ->
-                    val selected = index == currentPage
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 4.dp)
-                            .size(width = if (selected) 28.dp else 10.dp, height = 10.dp)
-                            .clip(CircleShape)
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
-                    )
-                }
-            }
-
-            if (isLastPage) {
-                Button(
-                    onClick = onFinish,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.intro_action_start))
-                }
-                OutlinedButton(
-                    onClick = onOpenOfflineSetup,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.intro_action_offline_setup))
-                }
-            } else {
-                Button(
-                    onClick = {
-                        coroutineScope.launch {
-                            pagerState.animateScrollToPage(currentPage + 1)
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.intro_action_next))
-                }
-                OutlinedButton(
-                    onClick = onFinish,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(stringResource(R.string.intro_action_skip))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun IntroPageCard(
-    page: OnboardingPage,
-    accentIndex: Int
-) {
-    val accentContainer = when (accentIndex % 3) {
-        0 -> MaterialTheme.colorScheme.primaryContainer
-        1 -> MaterialTheme.colorScheme.tertiaryContainer
-        else -> MaterialTheme.colorScheme.secondaryContainer
-    }
-    val accentContent = when (accentIndex % 3) {
-        0 -> MaterialTheme.colorScheme.onPrimaryContainer
-        1 -> MaterialTheme.colorScheme.onTertiaryContainer
-        else -> MaterialTheme.colorScheme.onSecondaryContainer
-    }
     Surface(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(vertical = 6.dp),
-        shape = ShinjikaiUi.CardShape,
-        color = MaterialTheme.colorScheme.surface,
-        border = ShinjikaiUi.cardBorder(),
-        tonalElevation = 0.dp
+        modifier = Modifier.fillMaxSize(),
+        color = colors.background
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(22.dp)
-                .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+                .windowInsetsPadding(WindowInsets.systemBars)
+                .padding(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(accentContainer),
-                    contentAlignment = Alignment.Center
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = page.icon,
-                        contentDescription = null,
-                        tint = accentContent,
-                        modifier = Modifier.size(24.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(colors.primary, RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "深",
+                            style = MaterialTheme.typography.titleMedium.copy(fontFamily = FontFamily.Default),
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onPrimary
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onBackground
                     )
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        text = stringResource(page.eyebrowRes),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = stringResource(page.titleRes),
-                        style = MaterialTheme.typography.headlineSmall
+                if (!isLastPage) {
+                    TextButton(
+                        onClick = {
+                            coroutineScope.launch { pagerState.animateScrollToPage(IntroPages.lastIndex) }
+                        }
+                    ) {
+                        Text(
+                            text = stringResource(R.string.intro_action_skip),
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) { page ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(22.dp, Alignment.CenterVertically)
+                ) {
+                    when (page) {
+                        0 -> IntroSearchPreview()
+                        1 -> IntroWordPreview()
+                        else -> IntroOfflinePreview(entryCount = entryCount)
+                    }
+                    Column(
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.intro_step, page + 1, IntroPages.size),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.primary
+                        )
+                        Text(
+                            text = stringResource(IntroPages[page].titleRes),
+                            modifier = Modifier.semantics { heading() },
+                            style = MaterialTheme.typography.headlineSmall.copy(lineHeight = 36.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onBackground
+                        )
+                        Text(
+                            text = stringResource(IntroPages[page].bodyRes),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp, lineHeight = 26.sp),
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Laid out LTR with the indices reversed so slide 1 is always the rightmost dot,
+            // matching the right-to-left page order.
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+            ) {
+                IntroPages.indices.reversed().forEach { index ->
+                    val selected = index == currentPage
+                    val width by animateDpAsState(if (selected) 24.dp else 8.dp, label = "introDot")
+                    Box(
+                        modifier = Modifier
+                            .size(width = width, height = 8.dp)
+                            .clip(CircleShape)
+                            .background(if (selected) colors.primary else colors.outlineVariant)
                     )
                 }
             }
-            Text(
-                text = stringResource(page.bodyRes),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.78f)
-            )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val canGoBack = currentPage > 0
+                    val backAlpha by animateFloatAsState(if (canGoBack) 1f else 0.35f, label = "introBackAlpha")
+                    Surface(
+                        onClick = {
+                            coroutineScope.launch { pagerState.animateScrollToPage(currentPage - 1) }
+                        },
+                        enabled = canGoBack,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .graphicsLayer { alpha = backAlpha },
+                        shape = CircleShape,
+                        color = colors.surface,
+                        contentColor = colors.onSurface,
+                        border = BorderStroke(1.dp, colors.outlineVariant)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(R.drawable.ic_nav_back),
+                                contentDescription = stringResource(R.string.intro_action_back),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            if (isLastPage) {
+                                onFinish()
+                            } else {
+                                coroutineScope.launch { pagerState.animateScrollToPage(currentPage + 1) }
+                            }
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .heightIn(min = 56.dp),
+                        shape = ShinjikaiUi.PillShape
+                    ) {
+                        Text(
+                            text = stringResource(if (isLastPage) R.string.intro_action_start else R.string.intro_action_next),
+                            style = MaterialTheme.typography.titleSmall.copy(fontSize = 16.sp),
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.size(10.dp))
+                        Icon(
+                            painter = painterResource(R.drawable.ic_intro_forward),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                if (isLastPage) {
+                    OutlinedButton(
+                        onClick = onOpenOfflineSetup,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 52.dp),
+                        shape = ShinjikaiUi.PillShape,
+                        border = BorderStroke(1.dp, colors.outlineVariant)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.intro_action_offline_setup),
+                            color = colors.onSurface,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
-private data class OnboardingPage(
-    val icon: ImageVector,
-    val eyebrowRes: Int,
-    val titleRes: Int,
-    val bodyRes: Int
-)
+@Composable
+private fun IntroTile(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier,
+        shape = IntroTileShape,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(content = content)
+    }
+}
+
+@Composable
+private fun IntroSearchPreview() {
+    val colors = MaterialTheme.colorScheme
+    val samples = listOf("猫", "قطة", "neko")
+    val labels = listOf("日本語", "عربي", "rōmaji")
+    var index by remember { mutableIntStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1600)
+            index = (index + 1) % samples.size
+        }
+    }
+    Column(
+        modifier = Modifier.clearAndSetSemantics { },
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        IntroTile(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .background(colors.background, ShinjikaiUi.PillShape)
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_nav_search),
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = samples[index],
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+                        color = colors.onSurface
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(width = 2.dp, height = 20.dp)
+                            .background(colors.primary)
+                    )
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+                ) {
+                    labels.forEachIndexed { i, label ->
+                        val selected = i == index
+                        Box(
+                            modifier = Modifier
+                                .height(30.dp)
+                                .clip(ShinjikaiUi.PillShape)
+                                .background(if (selected) colors.primaryContainer else Color.Transparent)
+                                .border(1.dp, if (selected) Color.Transparent else colors.outlineVariant, ShinjikaiUi.PillShape)
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        IntroTile(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // The headword layout fills whatever width it is given, so it takes the
+                // remaining space (weight) after the meaning text is measured.
+                HeadwordFuriganaText(
+                    text = "猫",
+                    reading = "ねこ",
+                    parts = null,
+                    modifier = Modifier.weight(1f),
+                    baseStyle = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    rubyStyle = MaterialTheme.typography.labelSmall,
+                    // Headword layout is forced LTR, so End = right edge (start of the RTL row).
+                    textAlign = TextAlign.End
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "قِطّ، قِطّة",
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+                    color = colors.onSurfaceVariant,
+                    maxLines = 1,
+                    softWrap = false
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun IntroWordPreview() {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier.clearAndSetSemantics { },
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        IntroTile(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                HeadwordFuriganaText(
+                    text = "勉強",
+                    reading = "べんきょう",
+                    parts = null,
+                    modifier = Modifier.fillMaxWidth(),
+                    baseStyle = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
+                    rubyStyle = MaterialTheme.typography.labelMedium,
+                    textAlign = TextAlign.Center
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    IntroPill(
+                        text = stringResource(R.string.detail_pronounce),
+                        iconRes = R.drawable.ic_detail_speaker,
+                        container = colors.primary,
+                        content = colors.onPrimary,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                    IntroPill(
+                        text = stringResource(R.string.detail_saved),
+                        iconRes = R.drawable.ic_nav_bookmarks_filled,
+                        container = colors.primaryContainer,
+                        content = colors.onPrimaryContainer,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            IntroTile(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.intro_preview_meaning),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant
+                    )
+                    Text(
+                        text = "دراسة، تعلُّم",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onSurface
+                    )
+                }
+            }
+            IntroTile(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.detail_example_fallback),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant
+                    )
+                    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                        RubyTextLayout(
+                            segments = listOf(
+                                RubyTextSegment(base = "毎日", ruby = "まいにち"),
+                                RubyTextSegment(base = "勉強", ruby = "べんきょう"),
+                                RubyTextSegment(base = "する。", ruby = null)
+                            ),
+                            baseStyle = MaterialTheme.typography.bodyMedium.copy(lineHeight = 20.sp),
+                            rubyStyle = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, lineHeight = 9.sp),
+                            baseColor = { colors.onSurface },
+                            rubyColor = { colors.onSurfaceVariant },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IntroOfflinePreview(entryCount: Int) {
+    val colors = MaterialTheme.colorScheme
+    val entryLabel = remember(entryCount) {
+        java.text.NumberFormat.getIntegerInstance().format(entryCount)
+    }
+    Column(
+        modifier = Modifier.clearAndSetSemantics { },
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        IntroTile(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 22.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .background(colors.primaryContainer, RoundedCornerShape(22.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_intro_offline),
+                        contentDescription = null,
+                        tint = colors.onPrimaryContainer,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+                Text(
+                    text = stringResource(R.string.intro_preview_offline_title),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onSurface
+                )
+                Text(
+                    text = stringResource(R.string.intro_preview_offline_body),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
+            }
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (entryCount > 0) {
+                IntroTile(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            text = entryLabel,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurface
+                        )
+                        Text(
+                            text = stringResource(R.string.intro_preview_entries),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+            IntroTile(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_settings_download),
+                        contentDescription = null,
+                        tint = colors.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.intro_preview_yomitan),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun IntroPill(
+    text: String,
+    iconRes: Int,
+    container: Color,
+    content: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .height(36.dp)
+            .background(container, ShinjikaiUi.PillShape)
+            .padding(horizontal = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = content,
+            modifier = Modifier.size(16.dp)
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = content,
+            maxLines = 1
+        )
+    }
+}
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -762,92 +1174,38 @@ private fun DetailScreenContent(
         }
     }
 
+    val detailActions = DetailActions(
+        isBookmarked = detailState.isBookmarked,
+        onToggleBookmark = { item?.let(viewModel::toggleBookmark) },
+        isAddedToAnki = item?.id != null && item.id == ankiAddedItemId,
+        isAddingToAnki = isAddingToAnki,
+        onAddToAnki = {
+            val note = ankiNote
+            if (note == null) {
+                Toast.makeText(context, addToAnkiFailedMessage, Toast.LENGTH_SHORT).show()
+            } else {
+                when {
+                    AnkiExporter.canRequestDirectAdd(context) &&
+                        !AnkiExporter.hasDatabasePermission(context) -> {
+                        pendingAnkiNote = note
+                        ankiPermissionLauncher.launch(ANKIDROID_PERMISSION)
+                    }
+                    else -> launchAnkiExport(note, item?.id)
+                }
+            }
+        },
+        onGoBack = onGoBack
+    )
+
     Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.detail_title)) },
-                navigationIcon = {
-                    FilledTonalIconButton(
-                        onClick = onGoBack,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back))
-                    }
-                },
-                actions = {
-                    val isBookmarked = detailState.isBookmarked
-                    val isAddedToAnki = item?.id != null && item.id == ankiAddedItemId
-                    FilledTonalIconButton(
-                        onClick = {
-                            val note = ankiNote
-                            if (note == null) {
-                                Toast.makeText(context, addToAnkiFailedMessage, Toast.LENGTH_SHORT).show()
-                            } else {
-                                when {
-                                    AnkiExporter.canRequestDirectAdd(context) &&
-                                        !AnkiExporter.hasDatabasePermission(context) -> {
-                                        pendingAnkiNote = note
-                                        ankiPermissionLauncher.launch(ANKIDROID_PERMISSION)
-                                    }
-                                    else -> {
-                                        launchAnkiExport(note, item?.id)
-                                    }
-                                }
-                            }
-                        },
-                        enabled = !isAddingToAnki,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = if (isAddedToAnki) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            contentColor = if (isAddedToAnki) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    ) {
-                        Icon(
-                            imageVector = if (isAddedToAnki) Icons.Default.Check else Icons.Default.Add,
-                            contentDescription = addToAnkiLabel
-                        )
-                    }
-                    FilledTonalIconButton(
-                        onClick = { item?.let(viewModel::toggleBookmark) },
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = if (isBookmarked) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            contentColor = if (isBookmarked) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    ) {
-                        Icon(
-                            imageVector = if (isBookmarked) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
-                            contentDescription = stringResource(R.string.nav_bookmarks)
-                        )
-                    }
-                },
-                colors = shinjikaiTopAppBarColors()
-            )
-        }
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         DetailScreenBody(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp),
+                .windowInsetsPadding(WindowInsets.statusBars)
+                .padding(horizontal = 16.dp),
             useOfflineMode = useOfflineMode,
             detailState = detailState,
             onSpeakJapaneseText = onSpeakJapaneseText,
@@ -857,7 +1215,8 @@ private fun DetailScreenContent(
             viewModel = viewModel,
             onOpenCategorySearch = onOpenCategorySearch,
             onOpenGlossaryReference = onOpenGlossaryReference,
-            onOpenRelatedWord = onOpenRelatedWord
+            onOpenRelatedWord = onOpenRelatedWord,
+            actions = detailActions
         )
     }
 }

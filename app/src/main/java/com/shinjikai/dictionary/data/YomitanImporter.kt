@@ -65,7 +65,7 @@ class YomitanImporter(
                                         detailsJson = null
                                     )
                                 )
-                                idSeed += 1
+                                idSeed -= 1
                                 importedCount += 1
 
                                 if (buffer.size >= 1200) {
@@ -151,7 +151,7 @@ class YomitanImporter(
                                         detailsJson = null
                                     )
                                 )
-                                idSeed += 1
+                                idSeed -= 1
                                 importedCount += 1
 
                                 if (buffer.size >= 1200) {

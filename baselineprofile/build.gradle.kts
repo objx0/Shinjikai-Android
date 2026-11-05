@@ -21,9 +21,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
 }
 
 baselineProfile {
@@ -31,7 +28,13 @@ baselineProfile {
 }
 
 dependencies {
-    implementation("androidx.benchmark:benchmark-macro-junit4:1.4.1")
-    implementation("androidx.test.ext:junit:1.2.1")
-    implementation("androidx.test.uiautomator:uiautomator:2.3.0")
+    implementation("androidx.benchmark:benchmark-macro-junit4:1.5.0")
+    implementation("androidx.test.ext:junit:1.3.0")
+    implementation("androidx.test.uiautomator:uiautomator:2.4.0")
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
 }

@@ -1,79 +1,85 @@
-<h1 align="center">قاموس شنجكاي للأندرويد</h1>
-
-<p align="center"><a href="./README.md">English</a> | العربية</p>
-
-<div dir="rtl" align="right">
-
-<p align="center">قاموس للكلمات اليابانية ومعانيها بالعربية، يعمل دون الاتصال بالإنترنت.</p>
-
 <p align="center">
-  <a href="https://play.google.com/store/apps/details?id=com.shinjikai.dictionary"><img src="https://img.shields.io/badge/Google%20Play-Available-414141?logo=googleplay&logoColor=white&style=for-the-badge" alt="Get it on Google Play" height="40" /></a>
-  <a href="#" aria-label="F-Droid coming soon"><img src="https://img.shields.io/badge/F--Droid-Coming%20soon-1976D2?logo=f-droid&logoColor=white&style=for-the-badge" alt="F-Droid coming soon" height="40" /></a>
+  <img src="docs/feature-graphic-1825.png" alt="قاموس شِنجِكاي — قاموس ياباني عربي يعمل دون إنترنت" width="720" />
 </p>
 
-## 📱 لقطات الشاشة
+<h1 align="center">قاموس شِنجِكاي · 深辞海</h1>
 
-<table align="center">
-  <tr>
-    <td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/screenshot-1.png" alt="واجهة البحث في شينجيكاي" width="240" /></td>
-    <td align="center"><img src="fastlane/metadata/android/en-US/images/phoneScreenshots/screenshot-2.png" alt="واجهة تفاصيل الكلمة في شينجيكاي" width="240" /></td>
-  </tr>
-</table>
+<p align="center"><a href="./README.md">English</a> · <b>العربية</b></p>
 
-> ⚠️ **إخلاء المسؤولية**
->
-> هذا مشروع مستقل. مصدر بيانات القاموس هو [موقع شنجكاي](http://shinjikai.app).
+<div dir="rtl">
 
-## ✨ الميزات
+<p align="center">قاموس ياباني ⇄ عربي لأندرويد يعمل بالكامل دون اتصال بالإنترنت، مبني بلغة Kotlin وJetpack Compose.</p>
 
-- 🔎 بحث سريع عن الكلمات باليابانية والعربية
-- 🧾 تفاصيل شاملة للكلمات تشمل الكانا والكانجي ومستوى JLPT والتصنيفات والمعاني العربية والكلمات ذات الصلة
-- 🔖 العلامات المرجعية لحفظ الكلمات وإدارتها
-- 🕘 عمليات البحث الأخيرة
-- 📦 بحث يعمل بالكامل دون اتصال بالإنترنت، مع بيانات مدمجة ودعم لاستيراد قواميس Yomitan محليًا
-- 🃏 تصدير الكلمات وتعريفاتها من التطبيق إلى Anki
-- 🎨 واجهة Material 3 مع دعم المظهر الفاتح والداكن
+<p align="center">
+  <a href="https://play.google.com/store/apps/details?id=com.shinjikai.dictionary"><img src="https://img.shields.io/badge/Google%20Play-Get%20it-800000?logo=googleplay&logoColor=white&style=for-the-badge" alt="حمّله من Google Play" height="36" /></a>
+</p>
 
-## 🛠️ التقنيات المستخدمة
+<p align="center">
+  <img src="https://img.shields.io/badge/Android-7.0%2B-800000?style=flat-square&logo=android&logoColor=white" alt="Android 7.0+" />
+  <img src="https://img.shields.io/badge/Kotlin-2.2-800000?style=flat-square&logo=kotlin&logoColor=white" alt="Kotlin 2.2" />
+  <img src="https://img.shields.io/badge/License-MIT-800000?style=flat-square" alt="MIT" />
+</p>
 
-- Kotlin
-- Jetpack Compose (Material 3)
-- Gson
-- Room مع فهرسة نصية كاملة (FTS) للقاموس المحلي والعلامات المرجعية
-- Coroutines
+---
 
-## ▶️ تشغيل التطبيق
+## الميزات
 
-1. افتح هذا المجلد في Android Studio.
-2. انتظر حتى يكتمل Gradle Sync.
-3. شغّل إعداد `app` على محاكي أو جهاز أندرويد.
+- **ابحث بأي كتابة:** باليابانية (كانجي أو كانا) أو بالعربية أو بالروماجي. يُرجع التطبيق الأفعال والصفات المصرّفة إلى صيغتها القاموسية تلقائيًا.
+- **أكثر من 80 ألف مدخل دون إنترنت:** القاموس كاملًا مدمج في التطبيق ومفهرس على الجهاز باستخدام SQLite FTS.
+- **صفحة غنية لكل كلمة:** فيها الفوريغانا، ومستوى JLPT، ودرجة الشيوع، والتصنيفات، والمعاني العربية، والشرح الياباني، والكلمات ذات الصلة، والنطق الصوتي.
+- **تصفّح القاموس** حسب التصنيف، أو استعرض كلمات عشوائية.
+- **المحفوظات وسجل البحث:** احفظ الكلمات، وارجع إلى عمليات البحث السابقة، وصدّر محفوظاتك إلى ملف CSV.
+- **التصدير إلى أنكي:** أرسل أي كلمة إلى AnkiDroid كبطاقة مراجعة بلمسة واحدة.
+- **استيراد قواميس Yomitan:** أضف أرشيفات قواميسك الخاصة إلى جانب البيانات المدمجة.
+- **واجهة Material 3** مصممة للعربية أولًا (من اليمين إلى اليسار)، مع المظهر الفاتح والداكن والألوان الديناميكية.
 
-## ⚙️ ملاحظات
+## البناء والتشغيل
 
-- يعمل البحث محليًا باستخدام فهارس Room FTS الخاصة بالقاموس المدمج أو المستورد.
-- تعتمد بعض الحقول مثل الروابط ذات الصلة والتصنيفات على البيانات المتوفرة لكل كلمة.
-- إذا لم تتوفر البيانات المدمجة، يمكن استيراد أرشيف قاموس مدعوم من إعدادات القاموس المحلي.
+المتطلبات: أحدث إصدار مستقر من Android Studio، وJDK 17.
 
-## 🗂️ هيكل المشروع
+```bash
+git clone https://github.com/objx0/Shinjikai-Android.git
+```
 
-- `app/src/main/java/com/shinjikai/dictionary/` -> الواجهة وتدفق التطبيق
-- `app/src/main/java/com/shinjikai/dictionary/data/` -> نماذج القاموس والمستودعات وأدوات الاستيراد وRoom والبحث المحلي
-- `app/src/main/res/` -> الموارد، مثل النصوص والسمات والأيقونات والخطوط
+1. افتح المشروع في Android Studio وانتظر حتى يكتمل Gradle Sync.
+2. شغّل إعداد `app` على جهاز أو محاكي بنظام Android 7.0 (API 24) أو أحدث.
 
-## 📦 الأصول المعجمية المدمجة
+خدمات Firebase (Analytics وCrashlytics) اختيارية، ولا تُفعَّل إلا عند وجود الملف `app/google-services.json`. يعمل البناء بشكل طبيعي من دونه.
 
-يأتي التطبيق مزوّدًا بقاموس `1Selxo/Shinjikai` محليًا. لتحديث ملفات القاموس المدمجة، شغّل:
+## القاموس المدمج
+
+يأتي التطبيق مزوّدًا ببيانات [`1Selxo/Shinjikai`](https://github.com/1Selxo/Shinjikai). لتحديثها شغّل:
 
 ```powershell
 .\scripts\fetch-bundled-dictionary.ps1
 ```
 
-ينزّل السكربت قاموس `1Selxo/Shinjikai` ويضع البيانات في `app/src/main/assets/bundled_dictionary/`، ثم يضغط ملفات `data_*.jsonl` بصيغة `.jsonl.xz` ويعيد ضغط الصور عندما يكون ذلك ممكنًا، ويخزّنها في ملفات `tar.xz` مجزأة ومتوافقة مع Git. عند التشغيل الأول، يستورد التطبيق ملفات JSONL المدمجة إلى Room/FTS ويستخرج الصور إلى مساحة تخزين التطبيق، ثم تعمل جميع عمليات البحث محليًا باستخدام فهارس SQLite.
+ينزّل السكربت البيانات إلى `app/src/main/assets/bundled_dictionary/`، ويضغط ملفات `data_*.jsonl` بصيغة `.jsonl.xz`، ويحزم الصور في أرشيفات `tar.xz` مجزأة ومتوافقة مع Git. عند التشغيل الأول، يستورد التطبيق البيانات إلى Room/FTS ويستخرج الصور إلى مساحة تخزينه، ثم تعمل كل عمليات البحث محليًا.
 
-## ❤️ المساهمون والحقوق
+## هيكل المشروع
 
-- المصدر الأساسي لبيانات القاموس: **[موقع شنجكاي](http://shinjikai.app)**
-- مجموعة بيانات القاموس المدمجة: **1Selxo/Shinjikai** (`https://github.com/1Selxo/Shinjikai`)
-- قواعد فكّ تصريف الكلمات اليابانية: **Yomitan** (`https://github.com/yomidevs/yomitan/tree/master/ext/js/language/ja`)، بترخيص GPL-3.0-or-later.
+| المسار | المحتوى |
+| --- | --- |
+| `app/src/main/java/com/shinjikai/dictionary/` | واجهة Compose والتنقل والشاشات |
+| `…/data/` | النماذج وقاعدة بيانات Room والمستودعات وأدوات الاستيراد والبحث |
+| `…/integration/` | التصدير إلى أنكي وإلى CSV |
+| `app/src/main/res/` | النصوص والأيقونات والخطوط |
+| `scripts/` | أدوات تجهيز القاموس المدمج |
+
+## التقنيات المستخدمة
+
+Kotlin · Jetpack Compose (Material 3) · Room مع FTS · Paging 3 · DataStore · Coroutines · Coil · Baseline Profiles
+
+## الشكر والمصادر
+
+- بيانات القاموس: [موقع شِنجِكاي](http://shinjikai.app)
+- البيانات المدمجة: [1Selxo/Shinjikai](https://github.com/1Selxo/Shinjikai)
+- قواعد إرجاع التصريفات اليابانية: [Yomitan](https://github.com/yomidevs/yomitan/tree/master/ext/js/language/ja) (بترخيص GPL-3.0-or-later)
+
+<blockquote dir="rtl" align="right"><p dir="rtl" align="right"><b>تطبيق غير رسمي.</b> محتوى القاموس مأخوذ من <a href="http://shinjikai.app">موقع شِنجِكاي</a> وحقوقه محفوظة لأصحابه. هذا التطبيق مشروع مستقل لا يتبعهم ولا يحظى باعتماد رسمي منهم.</p></blockquote>
+
+## الترخيص
+
+الشيفرة المصدرية للتطبيق منشورة بموجب [ترخيص MIT](./LICENSE). أما بيانات القاموس فلا يشملها هذا الترخيص، وتخضع لشروط مصدرها الأصلي.
 
 </div>

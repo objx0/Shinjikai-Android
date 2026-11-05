@@ -23,6 +23,8 @@ data class SearchUiState(
     val resultMode: ResultMode = ResultMode.None,
     val recentSearches: List<RecentSearchEntry> = emptyList(),
     val offlinePreviewItems: List<SearchItem> = emptyList(),
+    val wordOfTheDay: SearchItem? = null,
+    val isWordOfTheDayBookmarked: Boolean = false,
     val isImportingOfflineData: Boolean = false,
     val offlineImportError: Boolean = false,
     val offlineImportStatus: String? = null,

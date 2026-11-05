@@ -1,39 +1,62 @@
 package com.shinjikai.dictionary
 
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.Bookmark
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarDefaults
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemColors
-import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shinjikai.dictionary.ui.Screen
 
+private data class PrimaryNavItem(
+    val screen: Screen,
+    @DrawableRes val iconRes: Int,
+    @DrawableRes val selectedIconRes: Int,
+    @StringRes val labelRes: Int,
+    val onClick: () -> Unit
+)
+
+/**
+ * Floating pill navigation (M3 Expressive floating-toolbar style).
+ * The active tab expands into an icon + label pill; the rest stay icon-only.
+ * Drawn as an overlay: screens keep [ShinjikaiUi.BottomBarClearance] as bottom content padding.
+ */
 @Composable
 fun PrimaryBottomBar(
     currentScreen: Screen,
@@ -44,159 +67,106 @@ fun PrimaryBottomBar(
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val itemColors = NavigationBarItemDefaults.colors(
-        selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        selectedTextColor = MaterialTheme.colorScheme.onSurface,
-        indicatorColor = Color.Transparent,
-        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val items = listOf(
+        PrimaryNavItem(Screen.Browse, R.drawable.ic_nav_browse, R.drawable.ic_nav_browse_filled, R.string.nav_browse, onBrowseClick),
+        PrimaryNavItem(Screen.History, R.drawable.ic_nav_history, R.drawable.ic_nav_history_filled, R.string.history_title, onHistoryClick),
+        PrimaryNavItem(Screen.Search, R.drawable.ic_nav_search, R.drawable.ic_nav_search_filled, R.string.nav_search, onSearchClick),
+        PrimaryNavItem(Screen.Bookmarks, R.drawable.ic_nav_bookmarks, R.drawable.ic_nav_bookmarks_filled, R.string.nav_bookmarks, onBookmarksClick),
+        PrimaryNavItem(Screen.Settings, R.drawable.ic_nav_settings, R.drawable.ic_nav_settings_filled, R.string.nav_settings, onSettingsClick)
     )
-    val selectedIndex = when (currentScreen) {
-        Screen.Browse -> 0
-        Screen.History -> 1
-        Screen.Search -> 2
-        Screen.Bookmarks -> 3
-        Screen.Settings -> 4
-        else -> 2
-    }
+    val selectedScreen = items.firstOrNull { it.screen == currentScreen }?.screen ?: Screen.Search
 
-    BoxWithConstraints(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
     ) {
-        val itemWidth = maxWidth / PRIMARY_ITEM_COUNT
-        val indicatorWidth = minOf(64.dp, itemWidth - 8.dp)
-        val indicatorX by animateDpAsState(
-            targetValue = itemWidth * selectedIndex + (itemWidth - indicatorWidth) / 2,
-            animationSpec = spring(
-                dampingRatio = 0.82f,
-                stiffness = 420f
-            ),
-            label = "bottomBarIndicatorX"
-        )
-
-        Box(
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            tonalElevation = 3.dp,
+            shadowElevation = 8.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
             modifier = Modifier
-                .offset(x = indicatorX, y = 12.dp)
-                .size(width = indicatorWidth, height = 32.dp)
-                .background(
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    shape = MaterialTheme.shapes.extraLarge
-                )
-        )
-
-        NavigationBar(
-            containerColor = Color.Transparent,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            windowInsets = NavigationBarDefaults.windowInsets
+                .widthIn(max = 480.dp)
+                .fillMaxWidth()
+                .height(64.dp)
         ) {
-                BottomBarItem(
-                    selected = currentScreen == Screen.Browse,
-                    onClick = onBrowseClick,
-                    icon = { modifier ->
-                        Icon(
-                            Icons.AutoMirrored.Filled.MenuBook,
-                            contentDescription = stringResource(R.string.nav_browse),
-                            modifier = modifier
-                        )
-                    },
-                    label = stringResource(R.string.nav_browse),
-                    colors = itemColors
-                )
-                BottomBarItem(
-                    selected = currentScreen == Screen.History,
-                    onClick = onHistoryClick,
-                    icon = { modifier ->
-                        Icon(
-                            Icons.Default.History,
-                            contentDescription = stringResource(R.string.history_title),
-                            modifier = modifier
-                        )
-                    },
-                    label = stringResource(R.string.history_title),
-                    colors = itemColors
-                )
-                BottomBarItem(
-                    selected = currentScreen == Screen.Search,
-                    onClick = onSearchClick,
-                    icon = { modifier ->
-                        Icon(
-                            Icons.Default.Search,
-                            contentDescription = stringResource(R.string.nav_search),
-                            modifier = modifier
-                        )
-                    },
-                    label = stringResource(R.string.nav_search),
-                    colors = itemColors
-                )
-                BottomBarItem(
-                    selected = currentScreen == Screen.Bookmarks,
-                    onClick = onBookmarksClick,
-                    icon = { modifier ->
-                        Icon(
-                            Icons.Default.Bookmark,
-                            contentDescription = stringResource(R.string.nav_bookmarks),
-                            modifier = modifier
-                        )
-                    },
-                    label = stringResource(R.string.nav_bookmarks),
-                    colors = itemColors
-                )
-                BottomBarItem(
-                    selected = currentScreen == Screen.Settings,
-                    onClick = onSettingsClick,
-                    icon = { modifier ->
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = stringResource(R.string.nav_settings),
-                            modifier = modifier
-                        )
-                    },
-                    label = stringResource(R.string.nav_settings),
-                    colors = itemColors
-                )
+            Row(
+                modifier = Modifier
+                    .selectableGroup()
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                items.forEach { item ->
+                    val selected = item.screen == selectedScreen
+                    FloatingNavItem(
+                        selected = selected,
+                        iconRes = if (selected) item.selectedIconRes else item.iconRes,
+                        label = stringResource(item.labelRes),
+                        onClick = item.onClick
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun RowScope.BottomBarItem(
+private fun FloatingNavItem(
     selected: Boolean,
-    onClick: () -> Unit,
-    icon: @Composable (Modifier) -> Unit,
+    @DrawableRes iconRes: Int,
     label: String,
-    colors: NavigationBarItemColors
+    onClick: () -> Unit
 ) {
-    val iconScale by animateFloatAsState(
-        targetValue = if (selected) 1.10f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "bottomBarIconScale"
+    val colors = MaterialTheme.colorScheme
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) colors.secondaryContainer else Color.Transparent,
+        label = "floatingNavContainer"
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) colors.onSecondaryContainer else colors.onSurfaceVariant,
+        label = "floatingNavContent"
     )
 
-    NavigationBarItem(
-        selected = selected,
-        onClick = onClick,
-        icon = {
-            icon(
-                Modifier.graphicsLayer {
-                    scaleX = iconScale
-                    scaleY = iconScale
-                }
+    Row(
+        modifier = Modifier
+            .height(48.dp)
+            .clip(CircleShape)
+            .background(containerColor)
+            .selectable(selected = selected, onClick = onClick, role = Role.Tab)
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = 0.8f,
+                    stiffness = Spring.StiffnessMediumLow
+                )
             )
-        },
-        label = {
+            .padding(horizontal = if (selected) 16.dp else 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = if (selected) null else label,
+            tint = contentColor,
+            modifier = Modifier.size(24.dp)
+        )
+        AnimatedVisibility(
+            visible = selected,
+            enter = fadeIn() + expandHorizontally(),
+            exit = fadeOut() + shrinkHorizontally()
+        ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall
+                color = contentColor,
+                style = MaterialTheme.typography.labelLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 8.dp)
             )
-        },
-        alwaysShowLabel = true,
-        colors = colors
-    )
+        }
+    }
 }
-
-private const val PRIMARY_ITEM_COUNT = 5

@@ -1,5 +1,6 @@
 package com.shinjikai.dictionary
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,6 +11,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LatinDigits.wrap(newBase))
+    }
+
     private var processTextQuery by mutableStateOf<String?>(null)
     private var externalDeepLink by mutableStateOf<String?>(null)
 

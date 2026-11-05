@@ -1,5 +1,19 @@
 package com.shinjikai.dictionary
 
+import androidx.compose.foundation.layout.heightIn
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.sp
 import android.content.Context
 import android.os.Build
 import androidx.annotation.RequiresApi
@@ -22,8 +36,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.Shapes
-import androidx.compose.material3.TopAppBarColors
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -47,11 +59,15 @@ import androidx.compose.ui.unit.dp
 import com.shinjikai.dictionary.data.AppSettings
 import com.shinjikai.dictionary.data.AppThemeMode
 
+// Maroon palette (original brand colours). Users can switch to wallpaper colours with
+// "الألوان الديناميكية" in Settings. Every surface-container role is set so Material
+// components never fall back to the default purple baseline.
 private val ShinjikaiDarkColors = darkColorScheme(
     primary = Color(0xFFFF9E98),
     onPrimary = Color(0xFF470B08),
     primaryContainer = Color(0xFF5D2724),
     onPrimaryContainer = Color(0xFFFFDAD7),
+    inversePrimary = Color(0xFF9B3C36),
     secondary = Color(0xFFD0BFBC),
     onSecondary = Color(0xFF342725),
     secondaryContainer = Color(0xFF302725),
@@ -66,9 +82,20 @@ private val ShinjikaiDarkColors = darkColorScheme(
     onSurface = Color(0xFFF0EDEC),
     surfaceVariant = Color(0xFF242020),
     onSurfaceVariant = Color(0xFFCFC5C3),
-    outline = Color(0xFF7A6A68),
+    surfaceTint = Color(0xFFFF9E98),
+    inverseSurface = Color(0xFFF0EDEC),
+    inverseOnSurface = Color(0xFF211B1A),
+    outline = Color(0xFF8F7F7D),
     outlineVariant = Color(0xFF3A3231),
+    surfaceBright = Color(0xFF2F2A2A),
+    surfaceDim = Color(0xFF0E0D0D),
+    surfaceContainerLowest = Color(0xFF0A0909),
+    surfaceContainerLow = Color(0xFF131111),
+    surfaceContainer = Color(0xFF171515),
+    surfaceContainerHigh = Color(0xFF1E1B1B),
+    surfaceContainerHighest = Color(0xFF242020),
     error = Color(0xFFFFB4AB),
+    onError = Color(0xFF690005),
     errorContainer = Color(0xFF8F3934),
     onErrorContainer = Color(0xFFFFDAD6)
 )
@@ -78,6 +105,7 @@ private val ShinjikaiLightColors = lightColorScheme(
     onPrimary = Color.White,
     primaryContainer = Color(0xFFFFDAD5),
     onPrimaryContainer = Color(0xFF3A0806),
+    inversePrimary = Color(0xFFFF9E98),
     secondary = Color(0xFF715B58),
     onSecondary = Color.White,
     secondaryContainer = Color(0xFFF0E5E3),
@@ -92,9 +120,20 @@ private val ShinjikaiLightColors = lightColorScheme(
     onSurface = Color(0xFF211B1A),
     surfaceVariant = Color(0xFFF1ECEB),
     onSurfaceVariant = Color(0xFF5D504E),
-    outline = Color(0xFF8D7976),
+    surfaceTint = Color(0xFF9B3C36),
+    inverseSurface = Color(0xFF362F2E),
+    inverseOnSurface = Color(0xFFFBEEEC),
+    outline = Color(0xFF7A6866),
     outlineVariant = Color(0xFFE1D8D6),
+    surfaceBright = Color(0xFFFFFFFF),
+    surfaceDim = Color(0xFFE3DCDA),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceContainerLow = Color(0xFFFBF8F7),
+    surfaceContainer = Color(0xFFF6F2F1),
+    surfaceContainerHigh = Color(0xFFF1ECEB),
+    surfaceContainerHighest = Color(0xFFEBE5E4),
     error = Color(0xFFBA1A1A),
+    onError = Color.White,
     errorContainer = Color(0xFFFFDAD6),
     onErrorContainer = Color(0xFF410002)
 )
@@ -180,6 +219,7 @@ object ShinjikaiUi {
     val CardShape = RoundedCornerShape(12.dp)
     val CompactShape = RoundedCornerShape(8.dp)
     val PillShape = RoundedCornerShape(999.dp)
+    val SectionShape = RoundedCornerShape(28.dp)
     val ScreenPadding = PaddingValues(start = 16.dp, top = 14.dp, end = 16.dp, bottom = 16.dp)
     val BottomBarClearance = 96.dp
     val SuccessColor = Color(0xFF1F8A55)
@@ -335,18 +375,6 @@ fun ShinjikaiChip(
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
-fun shinjikaiTopAppBarColors(): TopAppBarColors {
-    return TopAppBarDefaults.topAppBarColors(
-        containerColor = MaterialTheme.colorScheme.background,
-        scrolledContainerColor = MaterialTheme.colorScheme.surface,
-        titleContentColor = MaterialTheme.colorScheme.onBackground,
-        navigationIconContentColor = MaterialTheme.colorScheme.onBackground,
-        actionIconContentColor = MaterialTheme.colorScheme.onBackground
-    )
-}
-
-@Composable
 fun ShinjikaiPanel(
     modifier: Modifier = Modifier,
     color: Color = ShinjikaiUi.panelColor(),
@@ -367,42 +395,220 @@ fun ShinjikaiEmptyState(
     title: String,
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
-    message: String? = null
+    message: String? = null,
+    @DrawableRes iconRes: Int? = null
 ) {
-    androidx.compose.foundation.layout.Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 28.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = ShinjikaiUi.SectionShape,
+        color = colors.surface,
+        border = BorderStroke(1.dp, colors.outlineVariant)
     ) {
-        if (icon != null) {
-            Surface(
-                shape = ShinjikaiUi.PillShape,
-                color = ShinjikaiUi.panelColor(alpha = 0.28f),
-                border = ShinjikaiUi.cardBorder(alpha = 0.18f)
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(14.dp)
+        androidx.compose.foundation.layout.Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (iconRes != null || icon != null) {
+                Box(
+                    modifier = Modifier
+                        .size(52.dp)
+                        .background(colors.primaryContainer, RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (iconRes != null) {
+                        Icon(
+                            painter = painterResource(iconRes),
+                            contentDescription = null,
+                            tint = colors.onPrimaryContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    } else if (icon != null) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = colors.onPrimaryContainer,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
+            }
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                color = colors.onSurface,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center
+            )
+            if (!message.isNullOrBlank()) {
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.onSurfaceVariant,
+                    textAlign = TextAlign.Center
                 )
             }
         }
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
-        )
-        if (!message.isNullOrBlank()) {
+    }
+}
+
+/** Bento-style tab header: big title + subtitle, then actions or a faint kanji mark. */
+@Composable
+fun ShinjikaiTabHeader(
+    title: String,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    kanji: String? = null,
+    actions: (@Composable RowScope.() -> Unit)? = null
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, top = 8.dp, end = 4.dp, bottom = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        androidx.compose.foundation.layout.Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = message,
-                style = MaterialTheme.typography.bodyMedium,
-                color = ShinjikaiUi.mutedTextColor(),
-                textAlign = TextAlign.Center
+                text = title,
+                modifier = Modifier.semantics { heading() },
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        if (actions != null) {
+            actions()
+        } else if (kanji != null) {
+            Text(
+                text = kanji,
+                modifier = Modifier.clearAndSetSemantics { },
+                style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Default),
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+            )
+        }
+    }
+}
+
+/** 44dp round header action. */
+@Composable
+fun ShinjikaiHeaderAction(
+    @DrawableRes iconRes: Int,
+    contentDescription: String,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    emphasized: Boolean = false
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier
+            .size(44.dp)
+            .semantics { this.contentDescription = contentDescription },
+        shape = CircleShape,
+        color = if (emphasized) colors.primary else colors.surface,
+        contentColor = if (emphasized) colors.onPrimary else colors.onSurface,
+        border = if (emphasized) null else BorderStroke(1.dp, colors.outlineVariant)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = if (enabled) LocalContentColor.current else LocalContentColor.current.copy(alpha = 0.38f)
+            )
+        }
+    }
+}
+
+/** Small muted section label that sits outside cards. */
+@Composable
+fun ShinjikaiSectionCaption(
+    text: String,
+    modifier: Modifier = Modifier,
+    trailing: String? = null
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (trailing != null) {
+            Text(
+                text = trailing,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Small pill action shown under a tab header (export, select, clear all). */
+@Composable
+fun ShinjikaiActionChip(
+    text: String,
+    @DrawableRes iconRes: Int,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    destructive: Boolean = false
+) {
+    val colors = MaterialTheme.colorScheme
+    val contentColor = when {
+        !enabled -> colors.onSurface.copy(alpha = 0.38f)
+        destructive -> colors.error
+        else -> colors.onSurface
+    }
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.heightIn(min = 40.dp),
+        shape = ShinjikaiUi.PillShape,
+        color = colors.surface,
+        contentColor = contentColor,
+        border = BorderStroke(
+            1.dp,
+            if (destructive && enabled) colors.error.copy(alpha = 0.4f) else colors.outlineVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }

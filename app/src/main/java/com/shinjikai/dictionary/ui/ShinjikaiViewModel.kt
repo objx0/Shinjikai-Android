@@ -1,5 +1,8 @@
 package com.shinjikai.dictionary.ui
 
+import com.shinjikai.dictionary.data.buildOfflineSearchPreview
+import com.shinjikai.dictionary.data.YomitanTermListRow
+import java.util.TimeZone
 import android.app.Application
 import android.content.Context
 import android.net.Uri
@@ -120,13 +123,54 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
         }
         .cachedIn(viewModelScope)
 
+    private val categorySpec = MutableStateFlow<SearchRequestSpec?>(null)
+
+    /** Name of the category shown on the category results screen. */
+    var categoryScreenName by mutableStateOf<String?>(null)
+        private set
+
+    /** Results for the category screen; kept apart from [searchResults] so the search tab is untouched. */
+    val categoryResults: Flow<PagingData<SearchItem>> = combine(categorySpec, searchRefreshNonce) { spec, _ -> spec }
+        .flatMapLatest { spec ->
+            if (spec == null) {
+                flowOf(PagingData.empty())
+            } else {
+                Pager(
+                    config = PagingConfig(
+                        pageSize = 30,
+                        prefetchDistance = 15,
+                        enablePlaceholders = false
+                    ),
+                    pagingSourceFactory = { SearchPagingSource(repository = repository, spec = spec) }
+                ).flow
+            }
+        }
+        .cachedIn(viewModelScope)
+
+    fun openCategory(categoryId: Int, categoryName: String) {
+        categoryScreenName = categoryName
+        categorySpec.value = SearchRequestSpec(
+            mode = ResultMode.Category,
+            categoryId = categoryId,
+            categoryName = categoryName
+        )
+    }
+
     val bookmarkPagingFlow: Flow<PagingData<BookmarkItem>> =
         bookmarkRepository.pagedFlow().cachedIn(viewModelScope)
 
     private var bookmarkedIds by mutableStateOf<Set<Int>>(emptySet())
 
-    val browsePagingFlow: Flow<PagingData<SearchItem>> = searchRefreshNonce
-        .flatMapLatest {
+    private val browseStartReadingFlow = MutableStateFlow<String?>(null)
+    val browseStartReading: StateFlow<String?> = browseStartReadingFlow
+
+    /** Jump the browse list to a kana row (e.g. "か"); null shows from the start. */
+    fun setBrowseStartReading(reading: String?) {
+        browseStartReadingFlow.value = reading
+    }
+
+    val browsePagingFlow: Flow<PagingData<SearchItem>> = combine(searchRefreshNonce, browseStartReadingFlow) { _, start -> start }
+        .flatMapLatest { startReading ->
             Pager(
                 config = PagingConfig(
                     pageSize = 30,
@@ -134,7 +178,7 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
                     prefetchDistance = 10,
                     enablePlaceholders = false
                 ),
-                pagingSourceFactory = { BrowsePagingSource(database.yomitanDao()) }
+                pagingSourceFactory = { BrowsePagingSource(database.yomitanDao(), startReading) }
             ).flow
         }
         .cachedIn(viewModelScope)
@@ -173,6 +217,8 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
         addAll(recentSearchStore.readCached())
     }
     val offlinePreviewItems = mutableStateListOf<SearchItem>()
+    private var wordOfTheDay by mutableStateOf<SearchItem?>(null)
+    private var featuredMinDifficulty = FEATURED_MIN_DIFFICULTY
 
     var isImportingOfflineData by mutableStateOf(false)
     var offlineImportError by mutableStateOf(false)
@@ -193,6 +239,8 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
             resultMode = searchSpec.value?.mode ?: ResultMode.None,
             recentSearches = recentSearches.toList(),
             offlinePreviewItems = offlinePreviewItems.toList(),
+            wordOfTheDay = wordOfTheDay,
+            isWordOfTheDayBookmarked = wordOfTheDay?.let { bookmarkedIds.contains(it.id) } == true,
             isImportingOfflineData = isImportingOfflineData,
             offlineImportError = offlineImportError,
             offlineImportStatus = offlineImportStatus,
@@ -397,7 +445,7 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun prefetchDetails(id: Int) {
-        if (id <= 0) return
+        if (id == 0) return
         synchronized(detailPrefetches) {
             if (detailPrefetches[id]?.isActive == true) return
             detailPrefetches[id] = viewModelScope.async {
@@ -506,9 +554,10 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
                 val isBookmarked = bookmarkedIds.contains(item.id)
                 if (isBookmarked) {
                     bookmarkRepository.deleteById(item.id)
+                    bookmarkedIds = bookmarkedIds - item.id
                     bookmarkedItems.removeAll { it.id == item.id }
                 } else {
-                    val existingDetails = details?.takeIf { it.word.id == item.id }
+                    val existingDetails = details?.takeIf { selectedItem?.id == item.id }
                     val detailsResult = existingDetails?.let { Result.success(it) }
                         ?: repository.loadWordDetails(item.id)
 
@@ -523,7 +572,7 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
                             .orEmpty()
 
                         val normalizedItem = SearchItem(
-                            id = word.id,
+                            id = item.id,
                             kana = word.kana,
                             writings = word.writings,
                             meaningSummary = item.meaningSummary.ifBlank { summaryFromDetails },
@@ -532,6 +581,7 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
                         )
 
                         bookmarkRepository.upsertWithDetails(normalizedItem, response)
+                        bookmarkedIds = bookmarkedIds + normalizedItem.id
                         bookmarkedItems.removeAll { it.id == normalizedItem.id }
                         bookmarkedItems.add(
                             0,
@@ -738,23 +788,63 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /**
+     * Search landing: one "word of the day" (same for the whole local day) plus a few
+     * random common words. Falls back to every term when no difficulty data exists.
+     */
     fun refreshOfflinePreview() {
         viewModelScope.launch {
-            val preview = withContext(Dispatchers.IO) {
-                database.yomitanDao().loadPreviewTerms(limit = 6).map { term ->
-                    SearchItem(
-                        id = term.id,
-                        kana = term.reading,
-                        writings = listOf(Writing(text = term.expression)),
-                        meaningSummary = term.glossary,
-                        difficulty = term.difficulty
-                    )
+            val (featured, picks) = withContext<Pair<SearchItem?, List<SearchItem>>>(Dispatchers.IO) {
+                val dao = database.yomitanDao()
+                var minDifficulty = FEATURED_MIN_DIFFICULTY
+                var count = dao.countFeaturedTerms(minDifficulty)
+                if (count == 0) {
+                    minDifficulty = 0
+                    count = dao.countFeaturedTerms(minDifficulty)
                 }
+                featuredMinDifficulty = minDifficulty
+                if (count == 0) return@withContext null to emptyList()
+                val now = System.currentTimeMillis()
+                val localDay = (now + TimeZone.getDefault().getOffset(now)) / DAY_MILLIS
+                val offset = Math.floorMod(localDay * WORD_OF_DAY_STRIDE, count.toLong()).toInt()
+                val featured = dao.loadFeaturedTermAt(minDifficulty, offset)?.toLandingItem()?.let { item ->
+                    // Full writings carry the per-kanji readings used for furigana.
+                    val writings = repository.loadWordDetails(item.id).getOrNull()?.word?.writings
+                        ?.filter { it.text.isNotBlank() }
+                    if (writings.isNullOrEmpty()) item else item.copy(writings = writings)
+                }
+                val picks = dao.loadRandomFeaturedTerms(minDifficulty, featured?.id ?: -1, LANDING_PICK_COUNT)
+                    .map { it.toLandingItem() }
+                featured to picks
             }
+            wordOfTheDay = featured
             offlinePreviewItems.clear()
-            offlinePreviewItems.addAll(preview)
+            offlinePreviewItems.addAll(picks)
         }
     }
+
+    /** Swaps the landing suggestions for another random set; the word of the day stays. */
+    fun shuffleLandingPicks() {
+        viewModelScope.launch {
+            val picks = withContext(Dispatchers.IO) {
+                database.yomitanDao()
+                    .loadRandomFeaturedTerms(featuredMinDifficulty, wordOfTheDay?.id ?: -1, LANDING_PICK_COUNT)
+                    .map { it.toLandingItem() }
+            }
+            if (picks.isNotEmpty()) {
+                offlinePreviewItems.clear()
+                offlinePreviewItems.addAll(picks)
+            }
+        }
+    }
+
+    private fun YomitanTermListRow.toLandingItem() = SearchItem(
+        id = id,
+        kana = reading,
+        writings = listOf(Writing(text = expression)),
+        meaningSummary = buildOfflineSearchPreview(glossary),
+        difficulty = difficulty
+    )
 
     fun importOfflineDictionaryFromUri(uri: Uri) {
         if (isOfflineDataOperationActive) return
@@ -1105,6 +1195,11 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
         private const val MAX_NESTED_ARCHIVE_PASSES = 3
         private const val NESTED_ARCHIVE_DIR_NAME = "__offline_import_archives__"
         private const val OFFLINE_CATEGORIES_META_KEY = "categories_json"
+        private const val FEATURED_MIN_DIFFICULTY = 4
+        private const val LANDING_PICK_COUNT = 3
+        private const val DAY_MILLIS = 86_400_000L
+        // Large odd stride so consecutive days land far apart in the term list.
+        private const val WORD_OF_DAY_STRIDE = 2_654_435_761L
         private const val PICKED_ZIP_SHINJIKAI_SOURCE = "raw-shinjikai-jp-ar-picked-zip"
         private const val PICKED_TXZ_SHINJIKAI_SOURCE = "raw-shinjikai-jp-ar-picked-tar-xz"
         private const val TAG = "ShinjikaiViewModel"

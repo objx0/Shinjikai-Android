@@ -1,10 +1,41 @@
 package com.shinjikai.dictionary
 
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.AbsoluteAlignment
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.stateDescription
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import android.content.Context
 import android.widget.Toast
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,18 +53,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.ClickableText
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.Icon
@@ -140,7 +164,8 @@ fun DetailScreenBody(
     viewModel: ShinjikaiViewModel,
     onOpenCategorySearch: (Int, String) -> Unit,
     onOpenGlossaryReference: (Int) -> Unit,
-    onOpenRelatedWord: (RelatedWordItem) -> Unit
+    onOpenRelatedWord: (RelatedWordItem) -> Unit,
+    actions: DetailActions
 ) {
     val item = detailState.selectedItem
     var zoomedPictureUrl by remember { mutableStateOf<String?>(null) }
@@ -150,6 +175,7 @@ fun DetailScreenBody(
     val wordCopiedMessage = stringResource(R.string.detail_word_copied)
     if (detailState.loading) {
         LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item { DetailBackPill(onClick = actions.onGoBack) }
             item {
                 DetailLoadingSkeleton(
                     message = detailState.offlineImportPhase
@@ -163,6 +189,7 @@ fun DetailScreenBody(
 
     if (item == null) {
         LazyColumn(modifier = modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            item { DetailBackPill(onClick = actions.onGoBack) }
             detailState.error?.let { error ->
                 item {
                     DetailStateCard(
@@ -243,13 +270,6 @@ fun DetailScreenBody(
                 )
             }
             .distinctBy { it.id }
-        val metadataChips = buildList {
-            jlptLevel?.let { add(CategoryChipModel(-it, "JLPT N$it")) }
-            commonnessLevel?.let {
-                add(CategoryChipModel(-(100 + it), stringResource(R.string.detail_commonness_label, commonnessStars(it))))
-            }
-            addAll(categoryChips)
-        }
         val wordPictures = remember(details?.word?.pictures) {
             extractDetailPictures(details?.word?.pictures.orEmpty())
         }
@@ -279,7 +299,8 @@ fun DetailScreenBody(
 
     LazyColumn(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         error?.let { message ->
             item {
@@ -292,14 +313,26 @@ fun DetailScreenBody(
             }
         }
 
+        item(key = "detail-header") {
+            val headerMark = remember(kanji, kana) { detailHeaderMark(kanji, kana) }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                DetailBackPill(onClick = actions.onGoBack)
+                ShinjikaiTabHeader(
+                    title = stringResource(R.string.detail_title),
+                    subtitle = if (kanji != kana && kana != "-") "$kanji · $kana" else kanji,
+                    kanji = headerMark ?: stringResource(R.string.browse_kanji)
+                )
+            }
+        }
+
         item {
             DetailWordHeaderCard(
             kanji = kanji,
             kana = kana,
             writingParts = primaryWriting?.parts,
             alternateWritings = alternateWritings,
-            chips = metadataChips,
             pronounceLabel = pronounceLabel,
+            actions = actions,
             onSpeakKana = {
                 val speakText = kana.trim().takeIf { it.isNotEmpty() && it != "-" }
                 when {
@@ -311,10 +344,6 @@ fun DetailScreenBody(
                     )
                 }
             },
-            onCategoryClick = { chip ->
-                focusManager.clearFocus()
-                onOpenCategorySearch(chip.id, chip.label)
-            },
             onKanjiClick = {
                 kanji.trim().takeIf { it.isNotEmpty() && it != "-" }?.let {
                     clipboardManager.setText(AnnotatedString(it))
@@ -322,6 +351,27 @@ fun DetailScreenBody(
                 }
             }
             )
+        }
+
+        if (commonnessLevel != null || jlptLevel != null) {
+            item {
+                DetailMetaTiles(
+                    commonnessLevel = commonnessLevel,
+                    jlptLevel = jlptLevel
+                )
+            }
+        }
+
+        if (categoryChips.isNotEmpty()) {
+            item {
+                DetailCategoryCard(
+                    chips = categoryChips,
+                    onCategoryClick = { chip ->
+                        focusManager.clearFocus()
+                        onOpenCategorySearch(chip.id, chip.label)
+                    }
+                )
+            }
         }
 
         if (meaningEntries.isNotEmpty()) {
@@ -815,46 +865,6 @@ internal fun formatOfflineSearchPreview(raw: String): String {
     ).replace("\n", " ").replace(SEARCH_PREVIEW_MULTISPACE_REGEX, " ").trim()
 }
 
-internal fun formatOnlineSearchPreview(raw: String): String {
-    return normalizeMeaningText(raw)
-        .replace(GLOSSARY_REFERENCE_REGEX) { match -> match.groupValues[1].trim() }
-        .replace("\n", " ")
-        .replace(SEARCH_PREVIEW_MULTISPACE_REGEX, " ")
-        .trim()
-}
-
-internal fun formatEpochAsLocal(
-    epochMs: Long,
-    formatter: DateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT)
-): String {
-    return runCatching {
-        formatter.format(Date(epochMs))
-    }.getOrDefault("-")
-}
-
-private fun commonnessStars(difficulty: Int): String {
-    if (difficulty !in 1..5) return ""
-    return buildString {
-        repeat(difficulty) { append('★') }
-        repeat(5 - difficulty) { append('☆') }
-    }
-}
-
-@Composable
-internal fun CommonnessBadge(
-    difficulty: Int,
-    modifier: Modifier = Modifier,
-    starsOnly: Boolean = false
-) {
-    val stars = commonnessStars(difficulty)
-    if (stars.isEmpty()) return
-    ShinjikaiChip(
-        text = if (starsOnly) stars else stringResource(R.string.detail_commonness_label, stars),
-        modifier = modifier,
-        selected = true
-    )
-}
-
 @Composable
 internal fun CategorySearchBanner(label: String, onClear: () -> Unit) {
     Card(
@@ -893,71 +903,537 @@ private fun DetailWordHeaderCard(
     kana: String,
     writingParts: List<com.shinjikai.dictionary.data.WritingPart>?,
     alternateWritings: List<String>,
-    chips: List<CategoryChipModel>,
     pronounceLabel: String,
+    actions: DetailActions,
     onSpeakKana: () -> Unit,
-    onCategoryClick: (CategoryChipModel) -> Unit,
     onKanjiClick: () -> Unit
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ShinjikaiUi.CardShape,
-        colors = ShinjikaiUi.cardColors(),
-        border = ShinjikaiUi.cardBorder(alpha = 0.38f)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                FilledTonalIconButton(
-                    onClick = onSpeakKana,
-                    colors = IconButtonDefaults.filledTonalIconButtonColors(
-                        containerColor = ShinjikaiUi.chipColor(alpha = 0.72f),
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                ) {
-                    Icon(imageVector = Icons.Filled.VolumeUp, contentDescription = pronounceLabel)
-                }
-            }
-            HeadwordFuriganaText(
-                text = kanji,
-                reading = kana,
-                parts = writingParts,
+    val colors = MaterialTheme.colorScheme
+    val watermark = remember(kanji, kana) { kanjiWatermarkChar(kanji.ifBlank { kana }) }
+    DetailSectionSurface {
+        Box {
+            watermark?.let { KanjiWatermark(mark = it, fontSize = 120.sp) }
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(role = Role.Button, onClick = onKanjiClick),
-                baseStyle = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.SemiBold),
-                rubyStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp, lineHeight = 14.sp),
-                textAlign = TextAlign.Center
-            )
-            if (alternateWritings.isNotEmpty()) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    alternateWritings.forEach { writing ->
-                        ShinjikaiChip(text = writing)
+                    .padding(horizontal = 18.dp, vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                HeadwordFuriganaText(
+                    text = kanji,
+                    reading = kana,
+                    parts = writingParts,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(role = Role.Button, onClick = onKanjiClick),
+                    baseStyle = MaterialTheme.typography.displayMedium.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 52.sp,
+                        lineHeight = 64.sp
+                    ),
+                    rubyStyle = MaterialTheme.typography.labelLarge.copy(
+                        fontSize = 15.sp,
+                        lineHeight = 15.sp,
+                        color = colors.onSurfaceVariant
+                    ),
+                    textAlign = TextAlign.Center,
+                    autoFit = true
+                )
+                if (alternateWritings.isNotEmpty()) {
+                    var writingsExpanded by remember(alternateWritings) { mutableStateOf(false) }
+                    val arrowRotation by animateFloatAsState(
+                        targetValue = if (writingsExpanded) 180f else 0f,
+                        label = "otherWritingsArrow"
+                    )
+                    val toggleLabel = stringResource(R.string.detail_other_writings, alternateWritings.size)
+                    Row(
+                        modifier = Modifier
+                            .clip(ShinjikaiUi.PillShape)
+                            .clickable(role = Role.Button, onClickLabel = toggleLabel) {
+                                writingsExpanded = !writingsExpanded
+                            }
+                            .heightIn(min = 40.dp)
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .semantics { stateDescription = if (writingsExpanded) "مفتوحة" else "مطوية" },
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = toggleLabel,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = colors.onSurfaceVariant
+                        )
+                        Icon(
+                            painter = painterResource(R.drawable.ic_detail_expand),
+                            contentDescription = null,
+                            tint = colors.onSurfaceVariant,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .rotate(arrowRotation)
+                        )
+                    }
+                    AnimatedVisibility(
+                        visible = writingsExpanded,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            alternateWritings.forEach { writing ->
+                                DetailWordChip(text = writing)
+                            }
+                        }
                     }
                 }
-            }
-            if (chips.isNotEmpty()) {
                 Row(
-                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    chips.forEach { chip ->
-                        val isCategory = chip.id > 0
-                        ShinjikaiChip(
-                            text = chip.label,
-                            selected = isCategory,
-                            onClick = if (isCategory) ({ onCategoryClick(chip) }) else null
+                    DetailActionButton(
+                        text = pronounceLabel,
+                        iconRes = R.drawable.ic_detail_speaker,
+                        onClick = onSpeakKana,
+                        primary = true,
+                        modifier = Modifier.weight(1.2f)
+                    )
+                    DetailActionButton(
+                        text = stringResource(if (actions.isBookmarked) R.string.detail_saved else R.string.detail_save),
+                        iconRes = if (actions.isBookmarked) R.drawable.ic_nav_bookmarks_filled else R.drawable.ic_nav_bookmarks,
+                        onClick = actions.onToggleBookmark,
+                        active = actions.isBookmarked,
+                        modifier = Modifier.weight(1f)
+                    )
+                    DetailActionButton(
+                        text = stringResource(if (actions.isAddedToAnki) R.string.detail_anki_added else R.string.detail_anki_short),
+                        iconRes = R.drawable.ic_anki,
+                        onClick = actions.onAddToAnki,
+                        active = actions.isAddedToAnki,
+                        enabled = !actions.isAddingToAnki,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** First kanji of [text] (or its first character) for the faint corner watermark. */
+internal fun kanjiWatermarkChar(text: String): String? {
+    val trimmed = text.trim()
+    if (trimmed.isEmpty() || trimmed == "-") return null
+    var index = 0
+    while (index < trimmed.length) {
+        val codePoint = trimmed.codePointAt(index)
+        if (Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.HAN) {
+            return String(Character.toChars(codePoint))
+        }
+        index += Character.charCount(codePoint)
+    }
+    return String(Character.toChars(trimmed.codePointAt(0)))
+}
+
+/** Big faded kanji in the card's top-left corner, like the Anki card design. Decorative only. */
+@Composable
+internal fun BoxScope.KanjiWatermark(mark: String, fontSize: TextUnit) {
+    Text(
+        text = mark,
+        modifier = Modifier
+            .align(AbsoluteAlignment.TopLeft)
+            .offset(x = 8.dp, y = (-fontSize.value * 0.1f).dp)
+            .clearAndSetSemantics { },
+        style = TextStyle(
+            fontFamily = FontFamily.Default,
+            fontSize = fontSize,
+            lineHeight = fontSize,
+            fontWeight = FontWeight.Bold
+        ),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f),
+        maxLines = 1,
+        softWrap = false
+    )
+}
+
+/** Actions owned by the detail route (bookmark state, Anki export, navigation). */
+data class DetailActions(
+    val isBookmarked: Boolean,
+    val onToggleBookmark: () -> Unit,
+    val isAddedToAnki: Boolean,
+    val isAddingToAnki: Boolean,
+    val onAddToAnki: () -> Unit,
+    val onGoBack: () -> Unit
+)
+
+/** Up to three kanji of the word for the faint header mark; null when the word has none. */
+private fun detailHeaderMark(kanji: String, kana: String): String? {
+    val kanjiChars = kanji.filter { Character.UnicodeScript.of(it.code) == Character.UnicodeScript.HAN }
+    return when {
+        kanjiChars.isNotEmpty() -> kanjiChars.take(3)
+        kana.isNotBlank() && kana != "-" && kana.length <= 3 -> kana
+        else -> null
+    }
+}
+
+@Composable
+internal fun DetailBackPill(onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        shape = ShinjikaiUi.PillShape,
+        color = colors.surface,
+        contentColor = colors.onSurfaceVariant,
+        border = BorderStroke(1.dp, colors.outlineVariant),
+        modifier = Modifier.padding(top = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 40.dp)
+                .padding(start = 12.dp, end = 14.dp, top = 8.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_nav_back),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = stringResource(R.string.nav_back),
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailActionButton(
+    text: String,
+    @DrawableRes iconRes: Int,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    primary: Boolean = false,
+    active: Boolean = false,
+    enabled: Boolean = true
+) {
+    val colors = MaterialTheme.colorScheme
+    val container = when {
+        primary -> colors.primary
+        active -> colors.primaryContainer
+        else -> Color.Transparent
+    }
+    val content = when {
+        primary -> colors.onPrimary
+        active -> colors.onPrimaryContainer
+        else -> colors.onSurface
+    }
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier.heightIn(min = 44.dp),
+        shape = ShinjikaiUi.PillShape,
+        color = container,
+        contentColor = if (enabled) content else content.copy(alpha = 0.38f),
+        border = if (primary || active) null else BorderStroke(1.dp, colors.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun DetailCategoryCard(
+    chips: List<CategoryChipModel>,
+    onCategoryClick: (CategoryChipModel) -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    DetailSectionSurface {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(horizontal = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.detail_category_label),
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurfaceVariant
+                )
+                Text(
+                    text = stringResource(R.string.detail_category_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurfaceVariant
+                )
+            }
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                chips.forEach { chip ->
+                    DetailCategoryChip(text = chip.label, onClick = { onCategoryClick(chip) })
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailMetaTiles(
+    commonnessLevel: Int?,
+    jlptLevel: Int?
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (commonnessLevel != null) {
+            DetailMetaTile(
+                label = stringResource(R.string.detail_meta_commonness),
+                value = stringResource(detailCommonnessLevelRes(commonnessLevel)),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    repeat(5) { index ->
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    if (index < commonnessLevel) colors.primary else colors.outlineVariant,
+                                    CircleShape
+                                )
                         )
                     }
                 }
             }
+        }
+        if (jlptLevel != null) {
+            DetailMetaTile(
+                label = stringResource(R.string.detail_meta_level),
+                value = "JLPT N$jlptLevel",
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            )
+        }
+    }
+}
+
+@StringRes
+private fun detailCommonnessLevelRes(level: Int): Int = when (level) {
+    5 -> R.string.commonness_level_5
+    4 -> R.string.commonness_level_4
+    3 -> R.string.commonness_level_3
+    2 -> R.string.commonness_level_2
+    else -> R.string.commonness_level_1
+}
+
+@Composable
+private fun DetailMetaTile(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    extra: (@Composable () -> Unit)? = null
+) {
+    Surface(
+        modifier = modifier,
+        shape = DetailTileShape,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            extra?.invoke()
+        }
+    }
+}
+
+private val DetailSectionShape = RoundedCornerShape(28.dp)
+private val DetailTileShape = RoundedCornerShape(22.dp)
+private val DetailInnerShape = RoundedCornerShape(18.dp)
+
+@Composable
+private fun DetailSectionSurface(
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = DetailSectionShape,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        content = content
+    )
+}
+
+/** Titled bento card used by every detail section. */
+@Composable
+private fun DetailSectionCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    trailing: String? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    DetailSectionSurface(modifier = modifier) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            DetailSectionTitle(text = title, trailing = trailing)
+            content()
+        }
+    }
+}
+
+@Composable
+private fun DetailSectionTitle(
+    text: String,
+    trailing: String? = null,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (trailing != null) {
+            Text(
+                text = trailing,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailWordChip(
+    text: String,
+    onClick: (() -> Unit)? = null
+) {
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .heightIn(min = 40.dp)
+            .clip(ShinjikaiUi.PillShape)
+            .background(colors.surfaceVariant.copy(alpha = 0.45f))
+            .border(1.dp, colors.outlineVariant, ShinjikaiUi.PillShape)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
+            color = colors.onSecondaryContainer,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun DetailCategoryChip(
+    text: String,
+    onClick: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .heightIn(min = 40.dp)
+            .clip(ShinjikaiUi.PillShape)
+            .background(colors.primaryContainer)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onPrimaryContainer,
+            maxLines = 1
+        )
+        Icon(
+            painter = painterResource(R.drawable.ic_settings_chevron),
+            contentDescription = null,
+            tint = colors.onPrimaryContainer,
+            modifier = Modifier.size(14.dp)
+        )
+    }
+}
+
+@Composable
+private fun DetailOutlinedPillButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = 44.dp),
+        shape = ShinjikaiUi.PillShape,
+        color = Color.Transparent,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(vertical = 10.dp)) {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
@@ -972,47 +1448,41 @@ private fun DefinitionsCard(
     var expanded by remember(content.text) { mutableStateOf(false) }
     val definition = content.text
     val canExpand = definition.length > 260 || definition.count { it == '\n' } >= 4
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ShinjikaiUi.CardShape,
-        colors = ShinjikaiUi.cardColors(),
-        border = ShinjikaiUi.cardBorder(alpha = 0.72f)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
-            Text(text = title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
-            ClickableDefinitionText(
-                text = definition,
-                references = content.references,
-                style = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textDirection = TextDirection.Rtl
-                ),
-                textAlign = TextAlign.Right,
-                maxLines = if (expanded) Int.MAX_VALUE else 6,
-                overflow = TextOverflow.Ellipsis,
-                onReferenceClick = onGlossaryReferenceClick,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+    DetailSectionCard(title = title) {
+        ClickableDefinitionText(
+            text = definition,
+            references = content.references,
+            style = MaterialTheme.typography.bodyLarge.copy(
+                color = MaterialTheme.colorScheme.onSurface,
+                textDirection = TextDirection.Rtl,
+                fontSize = 17.sp,
+                lineHeight = 29.sp
+            ),
+            textAlign = TextAlign.Right,
+            maxLines = if (expanded) Int.MAX_VALUE else 6,
+            overflow = TextOverflow.Ellipsis,
+            onReferenceClick = onGlossaryReferenceClick,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+        )
+        if (content.references.isNotEmpty()) {
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                content.references.distinctBy { "${it.id}|${it.label}" }.forEach { reference ->
+                    DetailWordChip(
+                        text = reference.label,
+                        onClick = { onGlossaryReferenceClick(reference.id) }
+                    )
+                }
+            }
+        }
+        if (canExpand) {
+            DetailOutlinedPillButton(
+                text = if (expanded) stringResource(R.string.detail_show_less) else stringResource(R.string.detail_show_more),
+                onClick = { expanded = !expanded }
             )
-            if (content.references.isNotEmpty()) {
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    content.references.distinctBy { "${it.id}|${it.label}" }.forEach { reference ->
-                        ShinjikaiChip(
-                            text = reference.label,
-                            selected = true,
-                            onClick = { onGlossaryReferenceClick(reference.id) }
-                        )
-                    }
-                }
-            }
-            if (canExpand) {
-                TextButton(onClick = { expanded = !expanded }, modifier = Modifier.align(Alignment.End)) {
-                    Text(if (expanded) stringResource(R.string.detail_show_less) else stringResource(R.string.detail_show_more))
-                }
-            }
         }
     }
 }
@@ -1031,26 +1501,24 @@ internal fun buildDetailAnkiNoteContent(
             }
         }
     val kana = detailKana.ifBlank { item.kana.ifBlank { "-" } }
-    val definitionContent = if (useOfflineMode) {
-        DefinitionContent(
-            text = item.meaningSummary.ifBlank { "-" },
+    // Prefer the full meanings from the loaded details (online or offline); the list-row
+    // summary can be empty for entries opened from history, categories or random picks.
+    val summaryText = normalizeMeaningText(item.meaningSummary).let { text ->
+        if (useOfflineMode) {
+            text
+        } else {
+            text.replace("\n", " ").replace(SEARCH_PREVIEW_MULTISPACE_REGEX, " ").trim()
+        }
+    }
+    val definitionContent = formatDefinition(
+        meanings = detailState.details?.word?.meanings,
+        notePrefix = "",
+        enableGlossaryLinks = false
+    ).takeIf { it.text.isNotBlank() }
+        ?: DefinitionContent(
+            text = summaryText,
             references = emptyList()
         )
-    } else {
-        formatDefinition(
-            meanings = detailState.details?.word?.meanings,
-            notePrefix = "",
-            enableGlossaryLinks = false
-        ).takeIf { it.text.isNotBlank() }
-            ?: DefinitionContent(
-                text = normalizeMeaningText(item.meaningSummary)
-                    .replace("\n", " ")
-                    .replace(SEARCH_PREVIEW_MULTISPACE_REGEX, " ")
-                    .trim()
-                    .ifBlank { "-" },
-                references = emptyList()
-            )
-    }
 
     return buildAnkiNoteContent(
         kanji = kanji,
@@ -1098,6 +1566,7 @@ private fun buildAnkiNoteContent(
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun MeaningEntriesCard(
     title: String,
     entries: List<DetailMeaningEntry>,
@@ -1111,11 +1580,10 @@ private fun MeaningEntriesCard(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(
+        DetailSectionTitle(
             text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
+            trailing = entries.size.toString(),
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 6.dp)
         )
         entries.forEachIndexed { index, entry ->
             MeaningEntryCard(
@@ -1144,42 +1612,46 @@ private fun MeaningEntryCard(
 ) {
     var definitionExpanded by remember(entry.definition) { mutableStateOf(false) }
     var definitionCanExpand by remember(entry.definition) { mutableStateOf(false) }
-    Surface(
-        shape = ShinjikaiUi.CompactShape,
-        color = MaterialTheme.colorScheme.surface,
-        border = ShinjikaiUi.cardBorder(alpha = 0.24f)
-    ) {
+    val colors = MaterialTheme.colorScheme
+    DetailSectionSurface {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = entryNumber.toString(),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .background(colors.primaryContainer, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = entryNumber.toString(),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = colors.onPrimaryContainer,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
                 if (entry.source.isNotBlank()) {
                     Text(
                         text = entry.source,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = colors.onSurfaceVariant
                     )
-                } else {
-                    Spacer(modifier = Modifier)
                 }
             }
             ClickableDefinitionText(
                 text = entry.definition,
                 references = entry.definitionReferences,
                 style = MaterialTheme.typography.bodyLarge.copy(
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textDirection = TextDirection.Rtl
+                    color = colors.onSurface,
+                    textDirection = TextDirection.Rtl,
+                    fontSize = 17.sp,
+                    lineHeight = 29.sp
                 ),
                 textAlign = TextAlign.Right,
                 onReferenceClick = onGlossaryReferenceClick,
@@ -1193,26 +1665,23 @@ private fun MeaningEntryCard(
                 modifier = Modifier.fillMaxWidth()
             )
             if (definitionCanExpand) {
-                TextButton(
-                    onClick = { definitionExpanded = !definitionExpanded },
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text(
-                        if (definitionExpanded) {
-                            stringResource(R.string.detail_show_less)
-                        } else {
-                            stringResource(R.string.detail_show_more)
-                        }
-                    )
-                }
+                DetailOutlinedPillButton(
+                    text = if (definitionExpanded) {
+                        stringResource(R.string.detail_show_less)
+                    } else {
+                        stringResource(R.string.detail_show_more)
+                    },
+                    onClick = { definitionExpanded = !definitionExpanded }
+                )
             }
             if (entry.note.isNotBlank()) {
                 ClickableDefinitionText(
                     text = "$notePrefix${entry.note}",
                     references = shiftGlossaryReferences(entry.noteReferences, notePrefix.length),
                     style = MaterialTheme.typography.bodyMedium.copy(
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textDirection = TextDirection.Rtl
+                        color = colors.onSurfaceVariant,
+                        textDirection = TextDirection.Rtl,
+                        lineHeight = 24.sp
                     ),
                     textAlign = TextAlign.Right,
                     onReferenceClick = onGlossaryReferenceClick,
@@ -1227,11 +1696,11 @@ private fun MeaningEntryCard(
                 )
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = ShinjikaiUi.CompactShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.56f)
+                    shape = DetailInnerShape,
+                    color = colors.background
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         horizontalAlignment = Alignment.End
                     ) {
@@ -1239,7 +1708,8 @@ private fun MeaningEntryCard(
                             text = stringResource(R.string.detail_japanese_definition),
                             modifier = Modifier.fillMaxWidth(),
                             style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Rtl),
-                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.primary,
                             textAlign = TextAlign.Right
                         )
                         SelectionContainer {
@@ -1247,9 +1717,10 @@ private fun MeaningEntryCard(
                                 text = citedJapaneseDefinition,
                                 modifier = Modifier.fillMaxWidth(),
                                 style = MaterialTheme.typography.bodyMedium.copy(
-                                    textDirection = TextDirection.Ltr
+                                    textDirection = TextDirection.Ltr,
+                                    lineHeight = 24.sp
                                 ),
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = colors.onSurface,
                                 textAlign = TextAlign.Left
                             )
                         }
@@ -1272,12 +1743,10 @@ private fun MeaningEntryCard(
             }
 
             if (entry.examples.isNotEmpty()) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.34f))
-                Text(
+                HorizontalDivider(color = colors.outlineVariant)
+                DetailSectionTitle(
                     text = stringResource(R.string.detail_meaning_examples_title),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
+                    trailing = stringResource(R.string.detail_examples_count, entry.examples.size)
                 )
                 ExampleList(
                     items = entry.examples,
@@ -1298,42 +1767,27 @@ private fun MeaningRelatedGroupSection(
     val title = group.label.ifBlank { stringResource(R.string.detail_related_words_title) }
     val visibleItems = group.items.filter { it.text.isNotBlank() || it.kana.isNotBlank() }
 
-    Surface(
+    Column(
         modifier = Modifier.fillMaxWidth(),
-        shape = ShinjikaiUi.CompactShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.36f),
-        border = ShinjikaiUi.cardBorder(alpha = 0.18f)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+        Text(
+            text = title,
+            modifier = Modifier.padding(horizontal = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
+            visibleItems.forEach { relatedWord ->
+                DetailWordChip(
+                    text = relatedWord.text.ifBlank { relatedWord.kana },
+                    onClick = { onRelatedWordClick(relatedWord) }
                 )
-            }
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                visibleItems.forEach { relatedWord ->
-                    ShinjikaiChip(
-                        text = relatedWord.text.ifBlank { relatedWord.kana },
-                        onClick = { onRelatedWordClick(relatedWord) },
-                        selected = false
-                    )
-                }
             }
         }
     }
@@ -1437,15 +1891,12 @@ private fun EntryPicturesRow(
 
 @Composable
 private fun PictureCard(picture: DetailPicture, onClick: () -> Unit) {
-    Card(
-        shape = ShinjikaiUi.CardShape,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-        ),
-        border = ShinjikaiUi.cardBorder(alpha = 0.32f),
-        modifier = Modifier
-            .size(width = 240.dp, height = if (picture.description.isBlank()) 170.dp else 214.dp)
-            .clickable(role = Role.Button, onClick = onClick)
+    Surface(
+        onClick = onClick,
+        shape = DetailTileShape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier.size(width = 240.dp, height = if (picture.description.isBlank()) 170.dp else 214.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxSize().padding(10.dp),
@@ -1455,7 +1906,10 @@ private fun PictureCard(picture: DetailPicture, onClick: () -> Unit) {
                 model = picture.url,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxWidth().weight(1f)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .clip(RoundedCornerShape(14.dp))
             )
             if (picture.description.isNotBlank()) {
                 Text(
@@ -1478,16 +1932,7 @@ private fun PicturesSection(
     pictures: List<DetailPicture>,
     onImageClick: (String) -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-        )
+    DetailSectionCard(title = title, trailing = pictures.size.toString()) {
         EntryPicturesRow(pictures = pictures, onImageClick = onImageClick)
     }
 }
@@ -1497,67 +1942,68 @@ private fun KanjiInformationSection(
     title: String,
     items: List<KanjiInfo>
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-        )
-        items.forEach { item ->
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = ShinjikaiUi.CompactShape,
-                color = MaterialTheme.colorScheme.surface,
-                border = ShinjikaiUi.cardBorder(alpha = 0.24f)
+    val colors = MaterialTheme.colorScheme
+    DetailSectionCard(title = title) {
+        items.chunked(2).forEach { rowItems ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Text(
-                        text = item.displayCharacter(),
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(5.dp),
-                        horizontalAlignment = Alignment.End
+                rowItems.forEach { item ->
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight(),
+                        shape = DetailTileShape,
+                        color = colors.surfaceVariant.copy(alpha = 0.45f),
+                        border = BorderStroke(1.dp, colors.outlineVariant)
                     ) {
-                        if (item.onYomi.isNotBlank()) {
-                            Text(
-                                text = stringResource(R.string.detail_on_yomi, item.onYomi),
-                                modifier = Modifier.fillMaxWidth(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Start
-                            )
-                        }
-                        if (item.kunYomi.isNotBlank()) {
-                            Text(
-                                text = stringResource(R.string.detail_kun_yomi, item.kunYomi),
-                                modifier = Modifier.fillMaxWidth(),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Start
-                            )
-                        }
-                        if (item.meaning.isNotBlank()) {
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                            Text(
-                                text = forceRtlText(item.meaning),
-                                modifier = Modifier.fillMaxWidth(),
-                                style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Rtl),
-                                textAlign = TextAlign.Right
-                            )
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            SelectionContainer {
+                                Text(
+                                    text = item.displayCharacter(),
+                                    style = MaterialTheme.typography.displaySmall.copy(fontSize = 40.sp),
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.onSurface
+                                )
+                            }
+                            if (item.onYomi.isNotBlank()) {
+                                Text(
+                                    text = stringResource(R.string.detail_on_yomi, item.onYomi),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            if (item.kunYomi.isNotBlank()) {
+                                Text(
+                                    text = stringResource(R.string.detail_kun_yomi, item.kunYomi),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = colors.onSurfaceVariant,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
+                            if (item.meaning.isNotBlank()) {
+                                HorizontalDivider(color = colors.outlineVariant)
+                                Text(
+                                    text = forceRtlText(item.meaning),
+                                    style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Rtl),
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.onSurface,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
                     }
+                }
+                if (rowItems.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -1598,7 +2044,7 @@ private fun ZoomableImageDialog(
                             contentColor = Color.White
                         )
                     ) {
-                        Icon(imageVector = Icons.Default.Close, contentDescription = stringResource(R.string.action_cancel))
+                        Icon(painter = painterResource(R.drawable.ic_settings_close), contentDescription = stringResource(R.string.action_cancel))
                     }
                 }
                 Box(
@@ -1652,26 +2098,17 @@ private fun RelatedWordsCard(
     onWordClick: (RelatedWordItem) -> Unit
 ) {
     val wordFallback = stringResource(R.string.detail_word_fallback)
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ShinjikaiUi.CardShape,
-        colors = ShinjikaiUi.cardColors(),
-        border = ShinjikaiUi.cardBorder()
-    ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(text = title, style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.primary)
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items.forEach { item ->
-                    ShinjikaiChip(
-                        text = item.text.ifBlank { item.kana.ifBlank { wordFallback.format(item.wordId) } },
-                        onClick = { onWordClick(item) },
-                        selected = false
-                    )
-                }
+    DetailSectionCard(title = title) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items.forEach { item ->
+                DetailWordChip(
+                    text = item.text.ifBlank { item.kana.ifBlank { wordFallback.format(item.wordId) } },
+                    onClick = { onWordClick(item) }
+                )
             }
         }
     }
@@ -1683,16 +2120,10 @@ private fun ExamplesCard(
     items: List<SentenceExample>,
     onWordClick: (Int) -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+    DetailSectionCard(
+        title = title,
+        trailing = stringResource(R.string.detail_examples_count, items.size)
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-        )
         ExampleList(
             items = items,
             initiallyVisible = items.size,
@@ -1712,32 +2143,29 @@ private fun ExampleList(
     }
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items.take(visibleCount).forEach { item ->
             SentenceExampleRow(item = item, onWordClick = onWordClick)
         }
         if (visibleCount < items.size) {
-            TextButton(
+            DetailOutlinedPillButton(
+                text = stringResource(R.string.detail_show_more),
                 onClick = {
                     visibleCount = (visibleCount + EXAMPLES_PAGE_SIZE).coerceAtMost(items.size)
-                },
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(stringResource(R.string.detail_show_more))
-            }
+                }
+            )
         } else if (items.size > initiallyVisible) {
-            TextButton(
-                onClick = { visibleCount = initiallyVisible.coerceAtMost(items.size) },
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(stringResource(R.string.detail_show_less))
-            }
+            DetailOutlinedPillButton(
+                text = stringResource(R.string.detail_show_less),
+                onClick = { visibleCount = initiallyVisible.coerceAtMost(items.size) }
+            )
         }
     }
 }
 
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 @Suppress("DEPRECATION")
 private fun SentenceExampleRow(
     item: SentenceExample,
@@ -1745,55 +2173,50 @@ private fun SentenceExampleRow(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    val haptics = LocalHapticFeedback.current
     val exampleFallback = stringResource(R.string.detail_example_fallback)
     val exampleCopiedMessage = stringResource(R.string.detail_example_copied)
+    val copyLabel = stringResource(R.string.detail_copy_example)
     val displayText = item.text.ifBlank { item.kana.ifBlank { exampleFallback } }
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ShinjikaiUi.CompactShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f),
-        border = ShinjikaiUi.cardBorder(alpha = 0.2f)
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(
-                    onClick = {
-                        clipboardManager.setText(AnnotatedString(displayText))
-                        Toast.makeText(context, exampleCopiedMessage, Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ContentCopy,
-                        contentDescription = stringResource(R.string.detail_copy_example),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+    val colors = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(colors.surfaceVariant.copy(alpha = 0.45f))
+            .border(1.dp, colors.outlineVariant, shape)
+            .combinedClickable(
+                onClick = {},
+                onLongClickLabel = copyLabel,
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    clipboardManager.setText(AnnotatedString(displayText))
+                    Toast.makeText(context, exampleCopiedMessage, Toast.LENGTH_SHORT).show()
                 }
-                RubyJapaneseText(
-                    text = displayText,
-                    kana = item.kana,
-                    links = item.wordLinks.orEmpty(),
-                    onWordClick = onWordClick,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            if (item.arabic.isNotBlank()) {
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.72f))
-                Text(
-                    text = forceRtlText(item.arabic),
-                    style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Rtl),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    textAlign = TextAlign.Right,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            )
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        RubyJapaneseText(
+            text = displayText,
+            kana = item.kana,
+            links = item.wordLinks.orEmpty(),
+            onWordClick = onWordClick,
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (item.arabic.isNotBlank()) {
+            HorizontalDivider(color = colors.outlineVariant)
+            Text(
+                text = forceRtlText(item.arabic),
+                style = MaterialTheme.typography.bodyMedium.copy(
+                    textDirection = TextDirection.Rtl,
+                    lineHeight = 24.sp
+                ),
+                color = colors.onSurface,
+                textAlign = TextAlign.Right,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

@@ -15,6 +15,7 @@ private val FTS_TOKEN_RESERVED_CHARS_REGEX = Regex("""[\*\^:\(\)\[\]{}!\\|&<>~]"
 private val JAPANESE_PARTICLES = listOf("から", "まで", "より", "だけ", "ほど", "など", "って", "では", "には", "は", "が", "を", "に", "で", "と", "へ", "も", "や", "か", "の")
 private const val DETAIL_CACHE_SIZE = 64
 private const val SEARCH_PLAN_CACHE_SIZE = 64
+private const val FTS_CANDIDATE_POOL = 1500
 
 private data class DetailCacheKey(
     val id: Int,
@@ -127,8 +128,9 @@ class LocalYomitanSource(
                 pagedRowsDirect = null
                 totalCountDirect = null
             } else if (ftsQueries.isNotEmpty()) {
-                val desiredCandidates = ((pageIndex + 1) * pageSize * 5).coerceAtLeast(250)
-                val perQueryLimit = (desiredCandidates / ftsQueries.size).coerceAtLeast(pageSize).coerceAtMost(1000)
+                // Fixed pool size: a page-dependent pool re-ranks rows between pages,
+                // which duplicates/skips items and crashes LazyColumn on repeated keys.
+                val perQueryLimit = (FTS_CANDIDATE_POOL / ftsQueries.size).coerceIn(pageSize, FTS_CANDIDATE_POOL)
                 val ftsRows = ftsQueries
                     .flatMap { ftsQuery ->
                         yomitanDao.searchFts(

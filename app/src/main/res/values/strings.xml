@@ -13,7 +13,6 @@
     <string name="detail_pictures_title">الصور</string>
     <string name="detail_related_words_title">كلمات ذات صلة</string>
     <string name="detail_similar_words_title">كلمات مشابهة</string>
-    <string name="detail_examples_title">الأمثلة</string>
     <string name="detail_meaning_examples_title">أمثلة هذا المعنى</string>
     <string name="detail_additional_examples_title">أمثلة إضافية</string>
     <string name="detail_japanese_definition">الشرح الياباني</string>
@@ -30,19 +29,20 @@
     <string name="detail_example_copied">تم نسخ المثال</string>
     <string name="detail_example_fallback">مثال</string>
     <string name="detail_word_fallback">كلمة %1$d</string>
-    <string name="detail_image_load_error">تعذّر التحميل</string>
     <string name="detail_retry">إعادة المحاولة</string>
     <string name="detail_show_more">عرض المزيد</string>
     <string name="detail_show_less">عرض أقل</string>
-    <string name="detail_card_collapse">طي البطاقة</string>
-    <string name="detail_card_show_count">عرض %1$d</string>
     <string name="detail_category_label">التصنيف</string>
     <string name="detail_category_fallback">التصنيف %1$d</string>
-    <string name="detail_commonness_label">الشيوع %1$s</string>
+    <string name="commonness_level_5">شائع جداً</string>
+    <string name="commonness_level_4">شائع</string>
+    <string name="commonness_level_3">متوسط</string>
+    <string name="commonness_level_2">قليل الشيوع</string>
+    <string name="commonness_level_1">نادر</string>
+    <string name="commonness_a11y">الشيوع: %1$s، %2$d من %3$d</string>
 
     <string name="search_hint">اكتب باليابانية أو العربية أو بالرومـاجي</string>
     <string name="search_recent_title">عمليات البحث الأخيرة</string>
-    <string name="search_recent_subtitle">اختر منها أو امسح ما لا تحتاجه</string>
     <string name="search_clear_history">مسح سجل البحث</string>
     <string name="search_remove_history">حذف هذا البحث</string>
     <string name="search_no_results">لا توجد نتائج</string>
@@ -50,20 +50,15 @@
     <string name="history_empty">لا توجد عمليات بحث محفوظة بعد.</string>
     <string name="history_delete_confirm_title">حذف من السجل؟</string>
     <string name="history_delete_confirm_message">سيتم حذف "%1$s" من سجل البحث.</string>
-    <string name="intro_app_name">قاموس شِنجِكاي 深辞海</string>
-    <string name="intro_title">القاموس الياباني العربي الكبير</string>
-    <string name="intro_page_1_eyebrow">الخطوة 1</string>
-    <string name="intro_page_1_title">ابحث بالطريقة التي تناسبك</string>
-    <string name="intro_page_1_body">اكتب باليابانية أو بالعربية أو بالرومـاجي، ثم تنقّل بين النتائج بسرعة حتى تصل إلى الكلمة التي تريدها.</string>
-    <string name="intro_page_2_eyebrow">الخطوة 2</string>
-    <string name="intro_page_2_title">افتح التفاصيل واحفظ المهم</string>
-    <string name="intro_page_2_body">كل كلمة تفتح لك المعاني والأمثلة والكلمات ذات الصلة، ويمكنك حفظها في المحفوظات للرجوع إليها لاحقاً.</string>
-    <string name="intro_page_3_eyebrow">الخطوة 3</string>
-    <string name="intro_page_3_title">جهّز البحث بدون إنترنت</string>
-    <string name="intro_page_3_body">القاموس مضمّن في التطبيق ويعمل بدون اتصال بعد التجهيز الأول.</string>
+    <string name="intro_page_1_title">ابحث كما تريد</string>
+    <string name="intro_page_1_body">اكتب باليابانية أو بالعربية أو بالروماجي، والنتائج تظهر فوراً.</string>
+    <string name="intro_page_2_title">كل ما تحتاجه عن الكلمة</string>
+    <string name="intro_page_2_body">المعاني والأمثلة والنطق في صفحة واحدة. احفظ الكلمة أو أضفها إلى أنكي بضغطة.</string>
+    <string name="intro_page_3_title">يعمل بدون إنترنت</string>
+    <string name="intro_page_3_body">القاموس مضمّن في التطبيق ويعمل بدون اتصال. ويمكنك إضافة قواميس Yomitan أخرى لاحقاً.</string>
     <string name="intro_action_next">التالي</string>
     <string name="intro_action_start">ابدأ الآن</string>
-    <string name="intro_action_skip">تخطّ المقدمة</string>
+    <string name="intro_action_skip">تخطّ</string>
     <string name="intro_action_offline_setup">إعداد القاموس</string>
 
     <string name="bookmarks_title" comment="Title for the bookmarks screen">المحفوظات</string>
@@ -72,66 +67,103 @@
     <string name="bookmarks_clear_selection">إلغاء التحديد</string>
     <string name="bookmarks_delete" comment="Intentional duplicate of settings_delete_dictionary_confirm; this is the delete action for bookmarked entries">حذف</string>
     <string name="bookmarks_done">تم</string>
-    <string name="bookmarks_manage">إدارة</string>
-    <string name="bookmarks_export_csv">تصدير المحفوظات بصيغة CSV</string>
     <string name="bookmarks_export_success">تم تصدير %1$d كلمات</string>
     <string name="bookmarks_export_failure">تعذّر تصدير المحفوظات</string>
     <string name="bookmarks_empty">لا توجد كلمات محفوظة</string>
     <string name="bookmarks_added_at">أضيفت: %1$s</string>
     <string name="bookmarks_delete_confirmation_title">حذف من المحفوظات؟</string>
     <string name="bookmarks_delete_count">سيتم حذف %1$d كلمات</string>
+    <string name="dialog_cannot_undo">لا يمكن التراجع عن ذلك.</string>
     <string name="action_cancel">إلغاء</string>
 
     <string name="settings_title" comment="Title for the settings screen">الإعدادات</string>
     <string name="settings_appearance_title">المظهر</string>
-    <string name="settings_theme_mode">نمط الواجهة</string>
     <string name="settings_theme_system">النظام</string>
     <string name="settings_theme_light">فاتح</string>
     <string name="settings_theme_dark">داكن</string>
-    <string name="settings_dark_mode">الوضع الداكن</string>
     <string name="settings_dynamic_color">الألوان الديناميكية</string>
-    <string name="settings_offline_mode">وضع عدم الاتصال بالإنترنت</string>
+    <string name="intro_action_back">السابق</string>
+    <string name="intro_step">%1$d من %2$d</string>
+    <string name="intro_preview_meaning">المعنى</string>
+    <string name="intro_preview_offline_title">يعمل بدون إنترنت</string>
+    <string name="intro_preview_offline_body">القاموس مضمّن داخل التطبيق</string>
+    <string name="intro_preview_entries">مدخل</string>
+    <string name="intro_preview_yomitan">أضف قواميس Yomitan</string>
+    <string name="category_subtitle">كلمات من نفس النوع</string>
+    <string name="category_empty">لا توجد كلمات في هذا التصنيف.</string>
+    <string name="category_kanji" translatable="false">分類</string>
+    <string name="detail_other_writings">%1$d كتابات أخرى</string>
+    <string name="detail_save">حفظ</string>
+    <string name="detail_saved">محفوظة</string>
+    <string name="detail_anki_short">أنكي</string>
+    <string name="detail_anki_added">أُضيفت</string>
+    <string name="detail_category_hint">اضغط لعرض كلمات من نفس النوع</string>
+    <string name="bookmarks_export_chip">تصدير CSV</string>
+    <string name="bookmarks_select_chip">تحديد</string>
+    <string name="history_clear_all_chip">مسح الكل</string>
+    <string name="detail_meta_commonness">الشيوع</string>
+    <string name="detail_meta_level">المستوى</string>
+    <string name="detail_examples_count">%1$d أمثلة</string>
+    <string name="browse_kanji" translatable="false">辞書</string>
+    <string name="browse_random_hint">افتح مدخلاً بالصدفة وتعلّم شيئاً جديداً</string>
+    <string name="browse_jump_title">انتقل حسب القراءة</string>
+    <string name="browse_jump_row_a11y">الانتقال إلى صف %1$s</string>
+    <string name="browse_row_caption" translatable="false">%1$s行</string>
+    <string name="browse_sorted_by_reading">حسب القراءة</string>
+    <string name="history_count">%1$d عملية بحث</string>
+    <string name="history_today">اليوم</string>
+    <string name="history_yesterday">أمس</string>
+    <string name="history_older">أقدم</string>
+    <string name="history_empty_message">ابحث عن أي كلمة وستظهر هنا لتعود إليها بسرعة.</string>
+    <string name="history_kanji" translatable="false">履歴</string>
+    <string name="bookmarks_kanji" translatable="false">栞</string>
+    <string name="bookmarks_count">%1$d كلمة محفوظة</string>
+    <string name="bookmarks_empty_message">اضغط زر الحفظ في صفحة أي كلمة لتجدها هنا.</string>
+    <string name="settings_anki_connection_title" translatable="false">AnkiDroid</string>
+    <string name="settings_anki_install_button">تثبيت AnkiDroid</string>
+    <string name="settings_anki_refresh">تحديث قائمة الرزم</string>
+    <string name="settings_anki_deck_count">%1$d رزمة</string>
+    <string name="settings_overview_title">نظرة عامة</string>
+    <string name="settings_entries_offline_label">مدخل متاح دون اتصال</string>
+    <string name="settings_active_dictionaries">%1$d من %2$d مفعّل</string>
+    <string name="settings_builtin_tag">مدمج</string>
+    <string name="settings_add_dictionary">إضافة قاموس</string>
+    <string name="settings_add_dictionary_hint">ملف ZIP بصيغة Yomitan</string>
+    <string name="settings_dictionaries_footer">القاموس المدمج لا يُحذف. اسحب أي قاموس آخر أو اضغط زر الحذف لإزالته.</string>
+    <string name="settings_delete_dictionary_a11y">حذف %1$s</string>
+    <string name="settings_toggle_dictionary_a11y">تفعيل %1$s</string>
+    <string name="search_word_of_day">كلمة اليوم</string>
+    <string name="search_more_words">كلمات قد تهمّك</string>
+    <string name="search_shuffle_words">غيّرها</string>
+    <string name="search_shuffle_words_a11y">اعرض كلمات أخرى</string>
+    <string name="search_browse_title">تصفّح القاموس</string>
+    <string name="search_results_title">النتائج</string>
+    <string name="settings_title_kanji" translatable="false">設定</string>
+    <string name="app_name_kanji" translatable="false">深辞海</string>
+    <string name="settings_dynamic_color_description">استخدم ألوان خلفية الجهاز</string>
+    <string name="settings_data_title">البيانات</string>
+    <string name="settings_about_credit_label">المعاني والأمثلة والصور من</string>
+    <string name="settings_about_unofficial">هذا التطبيق غير تابع لموقع قاموس شِنجِكاي، ويستخدم بياناته المنشورة بترخيص</string>
+    <string name="settings_about_license_cc_by" translatable="false">CC BY 4.0</string>
+    <string name="settings_about_license_mit" translatable="false">MIT</string>
+    <string name="settings_about_open_source">التطبيق مفتوح المصدر</string>
+    <string name="settings_about_repo_label" translatable="false">github.com/objx0/Shinjikai-Android</string>
+    <string name="settings_about_made_with">صُنع بـ</string>
+    <string name="settings_about_made_for">لمتعلّمي اليابانية العرب</string>
+    <string name="settings_dictionaries_tile_title">القواميس</string>
+    <string name="settings_dictionaries_tile_description">إدارة واستيراد</string>
     <string name="settings_local_dictionary">القواميس المثبّتة</string>
-    <string name="settings_local_count">العناصر المتوفرة: %1$d</string>
-    <string name="settings_last_local_update">آخر تحديث: %1$s</string>
     <string name="settings_loading_inline">جاري التحميل...</string>
-    <string name="settings_download_local_dictionary">تحميل بيانات القاموس</string>
-    <string name="settings_offline_archives_title">تنزيل ملفات القاموس</string>
-    <string name="settings_offline_archives_description">افتح صفحة الإصدار لتحميل أرشيف النص أو أرشيف الصور ثم استوردهما داخل التطبيق.</string>
-    <string name="settings_offline_archives_open">فتح صفحة تنزيل القاموس</string>
-    <string name="settings_local_summary_ready">&#x625;&#x62F;&#x627;&#x631;&#x629; &#x628;&#x64A;&#x627;&#x646;&#x627;&#x62A; &#x627;&#x644;&#x642;&#x627;&#x645;&#x648;&#x633; &#x648;&#x627;&#x644;&#x627;&#x633;&#x62A;&#x64A;&#x631;&#x627;&#x62F;.</string>
-    <string name="settings_local_summary_missing">&#x62A;&#x62C;&#x647;&#x64A;&#x632; &#x628;&#x64A;&#x627;&#x646;&#x627;&#x62A; &#x627;&#x644;&#x642;&#x627;&#x645;&#x648;&#x633; &#x648;&#x625;&#x62F;&#x627;&#x631;&#x629; &#x627;&#x644;&#x627;&#x633;&#x62A;&#x64A;&#x631;&#x627;&#x62F;.</string>
-    <string name="settings_offline_import_summary_ready">&#x62A;&#x645; &#x62A;&#x62B;&#x628;&#x64A;&#x62A; %1$d &#x645;&#x62F;&#x62E;&#x644; &#x648;&#x64A;&#x645;&#x643;&#x646;&#x643; &#x627;&#x633;&#x62A;&#x62E;&#x62F;&#x627;&#x645; &#x627;&#x644;&#x628;&#x62D;&#x62B; &#x628;&#x62F;&#x648;&#x646; &#x627;&#x62A;&#x635;&#x627;&#x644;.</string>
-    <string name="settings_offline_import_summary_empty">&#x627;&#x62E;&#x62A;&#x631; &#x645;&#x644;&#x641; `.zip` &#x644;&#x642;&#x627;&#x645;&#x648;&#x633; Yomitan &#x644;&#x627;&#x633;&#x62A;&#x64A;&#x631;&#x627;&#x62F;&#x647;.</string>
-    <string name="settings_last_import_never">&#x644;&#x645; &#x64A;&#x62A;&#x645; &#x627;&#x644;&#x627;&#x633;&#x62A;&#x64A;&#x631;&#x627;&#x62F; &#x628;&#x639;&#x62F;</string>
-    <string name="settings_last_import_source_none">&#x644;&#x627; &#x64A;&#x648;&#x62C;&#x62F; &#x645;&#x635;&#x62F;&#x631; &#x645;&#x633;&#x62C;&#x644; &#x628;&#x639;&#x62F;</string>
-    <string name="settings_offline_metric_count_subtitle">&#x639;&#x62F;&#x62F; &#x627;&#x644;&#x645;&#x62F;&#x627;&#x62E;&#x644; &#x627;&#x644;&#x645;&#x62A;&#x627;&#x62D;&#x629; &#x644;&#x644;&#x628;&#x62D;&#x62B; &#x628;&#x62F;&#x648;&#x646; &#x627;&#x62A;&#x635;&#x627;&#x644;</string>
     <string name="settings_offline_metric_last_update_title">&#x622;&#x62E;&#x631; &#x62A;&#x62D;&#x62F;&#x64A;&#x62B;</string>
-    <string name="settings_offline_metric_source_title">&#x627;&#x644;&#x645;&#x635;&#x62F;&#x631; &#x627;&#x644;&#x623;&#x62E;&#x64A;&#x631;</string>
-    <string name="settings_offline_metric_supported_files_title">&#x627;&#x644;&#x645;&#x644;&#x641;&#x627;&#x62A; &#x627;&#x644;&#x645;&#x62F;&#x639;&#x648;&#x645;&#x629;</string>
-    <string name="settings_offline_metric_supported_files_subtitle">&#x645;&#x644;&#x641;&#x627;&#x62A; ZIP &#x644;&#x642;&#x648;&#x627;&#x645;&#x64A;&#x633; Yomitan &#x641;&#x642;&#x637;</string>
-    <string name="settings_offline_indexing_inline">&#x62C;&#x627;&#x631;&#x64A; &#x627;&#x644;&#x641;&#x647;&#x631;&#x633;&#x629;..</string>
-    <string name="settings_offline_import_file">&#x627;&#x633;&#x62A;&#x64A;&#x631;&#x627;&#x62F; &#x645;&#x644;&#x641;</string>
     <string name="settings_offline_status_importing">&#x62C;&#x627;&#x631;&#x64A; &#x627;&#x644;&#x627;&#x633;&#x62A;&#x64A;&#x631;&#x627;&#x62F;</string>
-    <string name="settings_offline_status_retry">&#x62A;&#x62D;&#x62A;&#x627;&#x62C; &#x627;&#x644;&#x639;&#x645;&#x644;&#x64A;&#x629; &#x625;&#x644;&#x649; &#x625;&#x639;&#x627;&#x62F;&#x629; &#x627;&#x644;&#x645;&#x62D;&#x627;&#x648;&#x644;&#x629;</string>
-    <string name="settings_offline_status_ready">&#x62C;&#x627;&#x647;&#x632; &#x644;&#x644;&#x627;&#x633;&#x62A;&#x62E;&#x62F;&#x627;&#x645; &#x628;&#x62F;&#x648;&#x646; &#x625;&#x646;&#x62A;&#x631;&#x646;&#x62A;</string>
     <string name="settings_offline_status_missing">&#x644;&#x645; &#x64A;&#x62A;&#x645; &#x62A;&#x62B;&#x628;&#x64A;&#x62A; &#x627;&#x644;&#x642;&#x627;&#x645;&#x648;&#x633; &#x628;&#x639;&#x62F;</string>
     <string name="settings_copy_message_toast">&#x62A;&#x645; &#x646;&#x633;&#x62E; &#x627;&#x644;&#x631;&#x633;&#x627;&#x644;&#x629;</string>
     <string name="settings_copy_message_action">&#x646;&#x633;&#x62E; &#x627;&#x644;&#x631;&#x633;&#x627;&#x644;&#x629;</string>
-    <string name="settings_onboarding_title">المقدمة</string>
-    <string name="settings_onboarding_description">إذا أردت مشاهدة الشرح التعريفي مرة أخرى، يمكنك فتحه من هنا في أي وقت.</string>
-    <string name="settings_onboarding_show_again">عرض المقدمة مرة أخرى</string>
-    <string name="settings_about_title">&#x0639;&#x0646; &#x0627;&#x0644;&#x062A;&#x0637;&#x0628;&#x064A;&#x0642;</string>
-    <string name="settings_about_version">&#x0631;&#x0642;&#x0645; &#x0627;&#x0644;&#x0625;&#x0635;&#x062F;&#x0627;&#x0631;</string>
-    <string name="settings_about_source_description">&#x0627;&#x0637;&#x0644;&#x0639; &#x0639;&#x0644;&#x0649; &#x0645;&#x0635;&#x062F;&#x0631; &#x0627;&#x0644;&#x062A;&#x0637;&#x0628;&#x064A;&#x0642; &#x0639;&#x0644;&#x0649; GitHub.</string>
-    <string name="settings_github">الكود المصدري</string>
-    <string name="settings_open_github">فتح GitHub</string>
 
     <string name="error_details_load">تعذّر تحميل التفاصيل</string>
     <string name="error_bookmark_not_available_offline">هذه الكلمة غير محفوظة بدون إنترنت. احذفها من المحفوظات ثم أضفها مرة أخرى أثناء الاتصال.</string>
     <string name="error_bookmark_save">تعذّر حفظ الكلمة في المحفوظات.</string>
 
-    <string name="offline_import_phase_download">جاري تنزيل ملفات القاموس...</string>
     <string name="offline_import_phase_prepare">جاري تجهيز الاستيراد...</string>
     <string name="offline_import_phase_index">جاري فهرسة القاموس...</string>
     <string name="offline_import_phase_images">جاري تثبيت الصور...</string>
@@ -146,12 +178,6 @@
     <string name="offline_dictionary_missing_title">القاموس غير جاهز</string>
     <string name="offline_dictionary_missing_message">لم يتم العثور على بيانات مفهرسة بعد. أعد محاولة تجهيز القاموس المدمج.</string>
     <string name="offline_dictionary_retry">إعادة تجهيز القاموس</string>
-    <string name="offline_download_prompt_title">&#x064A;&#x0644;&#x0632;&#x0645; &#x062A;&#x062D;&#x0645;&#x064A;&#x0644; &#x0627;&#x0644;&#x0642;&#x0627;&#x0645;&#x0648;&#x0633; &#x0627;&#x0644;&#x0645;&#x062D;&#x0644;&#x064A;</string>
-    <string name="offline_download_prompt_message">&#x0644;&#x0627;&#x0633;&#x062A;&#x062E;&#x062F;&#x0627;&#x0645; &#x0627;&#x0644;&#x0628;&#x062D;&#x062B; &#x0628;&#x062F;&#x0648;&#x0646; &#x0625;&#x0646;&#x062A;&#x0631;&#x0646;&#x062A;&#x060C; &#x062D;&#x0645;&#x0651;&#x0644; &#x0627;&#x0644;&#x0642;&#x0627;&#x0645;&#x0648;&#x0633; &#x0627;&#x0644;&#x0645;&#x062D;&#x0644;&#x064A; &#x0623;&#x0648;&#x0644;&#x0627;&#x064B;. &#x0647;&#x0644; &#x062A;&#x0631;&#x0649;&#x062F; &#x0627;&#x0644;&#x0627;&#x0646;&#x062A;&#x0642;&#x0627;&#x0644; &#x0625;&#x0644;&#x0649; &#x0635;&#x0641;&#x062D;&#x0629; &#x0627;&#x0644;&#x0625;&#x0639;&#x062F;&#x0627;&#x062A;&#x0627;&#x062A;&#x061F;</string>
-    <string name="offline_download_prompt_confirm">&#x0646;&#x0639;&#x0645;&#x060C; &#x062D;&#x0648;&#x0651;&#x0644;&#x0646;&#x064A;</string>
-    <string name="settings_attribution_title">&#x0645;&#x0635;&#x062F;&#x0631; &#x0627;&#x0644;&#x0628;&#x064A;&#x0627;&#x0646;&#x0627;&#x062A;</string>
-    <string name="settings_attribution_description">&#x0628;&#x064A;&#x0627;&#x0646;&#x0627;&#x062A; &#x0627;&#x0644;&#x0642;&#x0627;&#x0645;&#x0648;&#x0633; &#x0645;&#x062F;&#x0645;&#x062C;&#x0629; &#x0645;&#x0646; 1Selxo/Shinjikai &#x0648;&#x062A;&#x062A;&#x0645; &#x0641;&#x0647;&#x0631;&#x0633;&#x062A;&#x0647;&#x0627; &#x0645;&#x062D;&#x0644;&#x064A;&#x0627;&#x064B; &#x0639;&#x0644;&#x0649; &#x0627;&#x0644;&#x062C;&#x0647;&#x0627;&#x0632;.</string>
-    <string name="settings_attribution_open">&#x0641;&#x062A;&#x062D; &#x0645;&#x0635;&#x062F;&#x0631; &#x0627;&#x0644;&#x0642;&#x0627;&#x0645;&#x0648;&#x0633; &#x0627;&#x0644;&#x0645;&#x062F;&#x0645;&#x062C;</string>
     <string name="history_clear_all_confirm_title">حذف كل سجل البحث؟</string>
     <string name="history_clear_all_confirm_message">سيتم حذف جميع عمليات البحث المحفوظة.</string>
     <string name="detail_add_to_anki">&#x0625;&#x0636;&#x0627;&#x0641;&#x0629; &#x0625;&#x0644;&#x0649; Anki</string>
@@ -167,10 +193,8 @@
     <string name="browse_count">%1$d مدخل</string>
     <string name="browse_empty">لم يتم تجهيز القاموس بعد.</string>
     <string name="browse_random">مدخل عشوائي</string>
-    <string name="settings_anki_section_title">Anki</string>
-    <string name="settings_anki_exporter_title">&#x0645;&#x0635;&#x062F;&#x0651;&#x0631; Anki</string>
+    <string name="settings_anki_exporter_title">مصدّر أنكي</string>
     <string name="settings_anki_exporter_description">&#x0627;&#x062E;&#x062A;&#x0631; &#x0627;&#x0644;&#x0631;&#x0632;&#x0645;&#x0629; &#x0627;&#x0644;&#x062A;&#x064A; &#x0633;&#x062A;&#x064F;&#x0635;&#x062F;&#x0651;&#x0631; &#x0625;&#x0644;&#x064A;&#x0647;&#x0627; &#x0627;&#x0644;&#x0643;&#x0644;&#x0645;&#x0627;&#x062A;.</string>
-    <string name="settings_anki_exporter_open">&#x0641;&#x062A;&#x062D; &#x0625;&#x0639;&#x062F;&#x0627;&#x062F;&#x0627;&#x062A; &#x0645;&#x0635;&#x062F;&#x0651;&#x0631; Anki</string>
     <string name="settings_anki_selected_deck">&#x0627;&#x0644;&#x0631;&#x0632;&#x0645;&#x0629; &#x0627;&#x0644;&#x0645;&#x062D;&#x062F;&#x062F;&#x0629;</string>
     <string name="settings_anki_selected_deck_description">&#x0633;&#x064A;&#x062A;&#x0645; &#x062A;&#x0635;&#x062F;&#x064A;&#x0631; &#x0627;&#x0644;&#x0643;&#x0644;&#x0645;&#x0627;&#x062A; &#x0627;&#x0644;&#x062C;&#x062F;&#x064A;&#x062F;&#x0629; &#x0645;&#x0646; &#x0635;&#x0641;&#x062D;&#x0629; &#x0627;&#x0644;&#x0645;&#x0639;&#x0646;&#x0649; &#x0625;&#x0644;&#x0649; &#x0647;&#x0630;&#x0647; &#x0627;&#x0644;&#x0631;&#x0632;&#x0645;&#x0629;.</string>
     <string name="settings_anki_allow_access_button">&#x0627;&#x0644;&#x0633;&#x0645;&#x0627;&#x062D; &#x0628;&#x0627;&#x0644;&#x0648;&#x0635;&#x0648;&#x0644; &#x0625;&#x0644;&#x0649; &#x0631;&#x0632;&#x0645; Anki</string>
@@ -178,13 +202,17 @@
     <string name="settings_anki_permission_required">&#x064A;&#x0644;&#x0632;&#x0645; &#x0645;&#x0646;&#x062D; &#x0627;&#x0644;&#x0625;&#x0630;&#x0646; &#x0644;&#x062A;&#x062D;&#x0645;&#x064A;&#x0644; &#x0627;&#x0644;&#x0631;&#x0632;&#x0645; &#x0627;&#x0644;&#x0645;&#x0648;&#x062C;&#x0648;&#x062F;&#x0629;.</string>
     <string name="settings_anki_install_required">&#x062B;&#x0628;&#x0651;&#x062A; AnkiDroid &#x0623;&#x0648;&#x0644;&#x0627;&#x064B; &#x0644;&#x0639;&#x0631;&#x0636; &#x0627;&#x0644;&#x0631;&#x0632;&#x0645; &#x0627;&#x0644;&#x0645;&#x0648;&#x062C;&#x0648;&#x062F;&#x0629;.</string>
     <string name="settings_anki_allow_access">&#x0627;&#x0633;&#x0645;&#x062D; &#x0644;&#x0644;&#x062A;&#x0637;&#x0628;&#x064A;&#x0642; &#x0628;&#x0627;&#x0644;&#x0648;&#x0635;&#x0648;&#x0644; &#x0625;&#x0644;&#x0649; Anki &#x0644;&#x062A;&#x062D;&#x0645;&#x064A;&#x0644; &#x0627;&#x0644;&#x0631;&#x0632;&#x0645;.</string>
-    <string name="settings_anki_available_decks">&#x0627;&#x0644;&#x0631;&#x0632;&#x0645; &#x0627;&#x0644;&#x0645;&#x062A;&#x0627;&#x062D;&#x0629;</string>
-    <string name="settings_anki_deck_field_label">&#x0627;&#x062E;&#x062A;&#x0631; &#x0627;&#x0644;&#x0631;&#x0632;&#x0645;&#x0629;</string>
+    <string name="settings_anki_choose_deck">اختر رزمة</string>
+    <string name="settings_anki_standalone_decks">رزم مستقلة</string>
+    <string name="settings_anki_parent_deck_all">الكل</string>
+    <string name="settings_anki_inside_parent">داخل %1$s</string>
+    <string name="settings_anki_new_deck">رزمة جديدة</string>
+    <string name="settings_anki_new_deck_description">تُنشأ في أنكي عند أول تصدير</string>
+    <string name="settings_anki_new_deck_name">اسم الرزمة</string>
+    <string name="settings_anki_new_deck_hint">لإنشاء رزمة فرعية استخدم :: مثل 日本語::JLPT N3</string>
+    <string name="settings_anki_new_deck_confirm">استخدام</string>
     <string name="settings_anki_use_default_deck">&#x0627;&#x0633;&#x062A;&#x062E;&#x062F;&#x0627;&#x0645; &#x0631;&#x0632;&#x0645;&#x0629; Shinjikai &#x0627;&#x0644;&#x0627;&#x0641;&#x062A;&#x0631;&#x0627;&#x0636;&#x064A;&#x0629;</string>
-    <string name="settings_dictionary_page_description">أضف قواميس Yomitan مضغوطة بزر «+».\nستظهر بعد تثبيتها هنا.</string>
     <string name="settings_bundled_dictionary_source">القاموس المدمج</string>
-    <string name="settings_installed_dictionaries_title">القواميس المثبتة</string>
-    <string name="settings_delete_dictionary_action">حذف قاموس %1$s</string>
     <string name="settings_delete_dictionary_title">حذف القاموس؟</string>
     <string name="settings_delete_dictionary_message">هل تريد إزالة %1$s وجميع مدخلاته المفهرسة من Shinjikai؟ لا يمكن التراجع عن هذا الإجراء.</string>
     <string name="settings_delete_dictionary_confirm" comment="Intentional duplicate of bookmarks_delete; this is the confirmation action for deleting a dictionary">حذف</string>

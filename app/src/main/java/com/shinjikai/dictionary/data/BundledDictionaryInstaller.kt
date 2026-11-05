@@ -59,7 +59,12 @@ class BundledDictionaryInstaller(
                     }.getOrDefault(0)
                 }
 
-                if (!force && existingBundledCount > 0 && existingBundledFtsCount == existingBundledCount) {
+                val signature = buildAssetSignature(jsonlPaths, schemaVersion = BUNDLED_DATA_SCHEMA)
+                val storedSignature = dao.getMetaValue(META_BUNDLED_SIGNATURE)
+                // Null = installed by an older build that predates the signature; keep it.
+                val bundleChanged = storedSignature != null && storedSignature != signature
+
+                if (!force && !bundleChanged && existingBundledCount > 0 && existingBundledFtsCount == existingBundledCount) {
                     Log.i(TAG, "Bundled dictionary already installed; skipping import.")
                     return@withContext BundledDictionaryInstallResult(
                         available = true,
@@ -69,7 +74,6 @@ class BundledDictionaryInstaller(
                 }
 
                 val imageArchivePaths = findImageArchiveAssetPaths()
-                val signature = buildAssetSignature(jsonlPaths, schemaVersion = BUNDLED_DATA_SCHEMA)
                 val installedImages = installBundledImagesIfNeeded(
                     imageArchivePaths = imageArchivePaths,
                     force = force,

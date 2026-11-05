@@ -1,5 +1,6 @@
 package com.shinjikai.dictionary
 
+import androidx.compose.ui.text.style.TextDirection
 import android.content.Intent
 import android.content.Context
 import android.net.Uri
@@ -7,9 +8,12 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,49 +27,27 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.DownloadForOffline
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Public
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -76,7 +58,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -86,6 +67,34 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.text.NumberFormat
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import com.shinjikai.dictionary.data.AppThemeMode
 import com.shinjikai.dictionary.integration.ANKIDROID_PERMISSION
 import com.shinjikai.dictionary.integration.AnkiExporter
@@ -98,10 +107,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private data class OfflineImportStatusUi(
-    val label: String,
-    val color: Color
-)
+private val SettingsCardShape = RoundedCornerShape(28.dp)
+private val SettingsTileShape = RoundedCornerShape(22.dp)
+private val SettingsChipShape = RoundedCornerShape(12.dp)
+private val SettingsTileChipShape = RoundedCornerShape(14.dp)
+
+private const val ShinjikaiWebsiteUrl = "https://shinjikai.app"
+private const val ShinjikaiSourceUrl = "https://github.com/objx0/Shinjikai-Android"
+private const val CcByLicenseUrl = "https://creativecommons.org/licenses/by/4.0/"
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -114,127 +127,578 @@ fun SettingsScreenContent(
     onOpenAnkiExporterSettings: () -> Unit,
 ) {
     val context = LocalContext.current
+    val settings = uiState.settings
+    val openUrl: (String) -> Unit = { url ->
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+    }
+
+    val loadingLabel = stringResource(R.string.settings_loading_inline)
+    val dictionariesSubtitle = when {
+        uiState.isImportingOfflineData -> uiState.offlineImportPhase ?: loadingLabel
+        !uiState.isOfflineDictionaryStateLoaded -> loadingLabel
+        uiState.offlineImportError -> stringResource(R.string.offline_import_failure)
+        uiState.offlineTermCount > 0 -> stringResource(R.string.settings_dictionaries_tile_description)
+        else -> stringResource(R.string.settings_offline_status_missing)
+    }
+    val ankiFallback = stringResource(R.string.settings_anki_exporter_description)
+    val ankiSubtitle = settings.selectedAnkiDeckName.ifBlank { ankiFallback }
 
     Scaffold(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(
-                        start = 16.dp,
-                        top = 8.dp,
-                        end = 16.dp,
-                        bottom = ShinjikaiUi.BottomBarClearance
-                    )
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                ShinjikaiPageHeader(
-                    title = stringResource(R.string.settings_title),
-                    icon = Icons.Filled.Settings
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    start = 16.dp,
+                    top = 8.dp,
+                    end = 16.dp,
+                    bottom = ShinjikaiUi.BottomBarClearance
+                ),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            SettingsHeader()
+
+            SettingsSectionCard(title = stringResource(R.string.settings_appearance_title)) {
+                ThemeModeSegmentedControl(
+                    selectedMode = settings.themeMode,
+                    onModeSelected = viewModel::setThemeMode
                 )
-
-                ShinjikaiCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = 14.dp
-                ) {
-                    SectionLabel(text = stringResource(R.string.settings_appearance_title))
-                    ThemeModeSelector(
-                        selectedMode = uiState.settings.themeMode,
-                        onModeSelected = viewModel::setThemeMode,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 10.dp)
-                    )
-                    SettingsToggleRow(
-                        icon = Icons.Filled.Palette,
-                        label = stringResource(R.string.settings_dynamic_color),
-                        checked = uiState.settings.useDynamicColor && supportsDynamicColor,
-                        onCheckedChange = viewModel::setUseDynamicColor,
-                        enabled = supportsDynamicColor,
-                        modifier = Modifier.padding(top = 14.dp)
+                if (supportsDynamicColor) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    SettingsSwitchRow(
+                        iconRes = R.drawable.ic_settings_palette,
+                        title = stringResource(R.string.settings_dynamic_color),
+                        description = stringResource(R.string.settings_dynamic_color_description),
+                        checked = settings.useDynamicColor,
+                        onCheckedChange = viewModel::setUseDynamicColor
                     )
                 }
+            }
 
-                ShinjikaiCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = 0.dp
-                ) {
-                    LocalDictionarySummaryCard(
-                        uiState = uiState,
-                        onClick = onOpenLocalDictionary
-                    )
-                }
-
-                ShinjikaiCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = 14.dp
-                ) {
-                    SettingsLinkRow(
-                        painterRes = R.drawable.ic_anki,
-                        title = stringResource(R.string.settings_anki_exporter_title),
-                        description = stringResource(R.string.settings_anki_exporter_description),
-                        contentDescription = stringResource(R.string.settings_anki_exporter_open),
-                        onClick = onOpenAnkiExporterSettings
-                    )
-                }
-
-                ShinjikaiCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = 14.dp
-                ) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        SettingsLinkRow(
-                            icon = Icons.Filled.Public,
-                            title = stringResource(R.string.settings_attribution_title),
-                            description = stringResource(R.string.settings_attribution_description),
-                            contentDescription = stringResource(R.string.settings_attribution_open),
-                            trailingIcon = Icons.AutoMirrored.Filled.OpenInNew,
-                            onClick = {
-                                context.startActivity(
-                                    Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse("https://github.com/1Selxo/Shinjikai")
-                                    )
-                                )
-                            }
-                        )
-                        SettingsLinkRow(
-                            icon = Icons.Filled.Code,
-                            title = stringResource(R.string.settings_github),
-                            description = stringResource(R.string.settings_about_source_description),
-                            contentDescription = stringResource(R.string.settings_open_github),
-                            trailingIcon = Icons.AutoMirrored.Filled.OpenInNew,
-                            onClick = {
-                                context.startActivity(
-                                    Intent(
-                                        Intent.ACTION_VIEW,
-                                        Uri.parse("https://github.com/objx0/Shinjikai-Android")
-                                    )
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Box(
+            SettingsSectionCard(title = stringResource(R.string.settings_data_title)) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 4.dp),
-                    contentAlignment = Alignment.Center
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "${stringResource(R.string.settings_about_version)}: $appVersionLabel",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                    SettingsTile(
+                        iconRes = R.drawable.ic_settings_dictionaries,
+                        title = stringResource(R.string.settings_dictionaries_tile_title),
+                        subtitle = dictionariesSubtitle,
+                        onClick = onOpenLocalDictionary,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                    SettingsTile(
+                        iconRes = R.drawable.ic_anki,
+                        title = stringResource(R.string.settings_anki_exporter_title),
+                        subtitle = ankiSubtitle,
+                        onClick = onOpenAnkiExporterSettings,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
+            }
+
+            AboutCreditCard(
+                onOpenWebsite = { openUrl(ShinjikaiWebsiteUrl) },
+                onOpenLicense = { openUrl(CcByLicenseUrl) }
+            )
+            AboutSourceRow(onClick = { openUrl(ShinjikaiSourceUrl) })
+            AboutFooter(versionLabel = appVersionLabel)
+        }
+    }
+}
+
+/** Credits the dictionary source (shinjikai.app) and states the app is unofficial. */
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun AboutCreditCard(
+    onOpenWebsite: () -> Unit,
+    onOpenLicense: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onOpenWebsite,
+        modifier = Modifier.fillMaxWidth(),
+        shape = SettingsCardShape,
+        color = colors.surface,
+        border = BorderStroke(1.dp, colors.outlineVariant)
+    ) {
+        Box(modifier = Modifier.fillMaxWidth()) {
+            KanjiWatermark(mark = "辞", fontSize = 130.sp)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .background(colors.primary, SettingsTileChipShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "深",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontFamily = FontFamily.Default,
+                                fontSize = 22.sp
+                            ),
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onPrimary
+                        )
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.settings_about_credit_label),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurfaceVariant
+                        )
+                        Text(
+                            text = stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurface
+                        )
+                    }
+                    Icon(
+                        painter = painterResource(R.drawable.ic_settings_external),
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_about_unofficial),
+                        modifier = Modifier.align(Alignment.CenterVertically),
+                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 24.sp),
+                        color = colors.onSurfaceVariant
+                    )
+                    AboutLicenseBadge(
+                        text = stringResource(R.string.settings_about_license_cc_by),
+                        onClick = onOpenLicense,
+                        modifier = Modifier.align(Alignment.CenterVertically)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AboutSourceRow(onClick: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = SettingsCardShape,
+        color = colors.surface,
+        border = BorderStroke(1.dp, colors.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SettingsIconChip(
+                iconRes = R.drawable.ic_settings_github,
+                size = 44.dp,
+                iconSize = 22.dp,
+                shape = SettingsTileChipShape
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.settings_about_open_source),
+                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onSurface
+                    )
+                    AboutLicenseBadge(text = stringResource(R.string.settings_about_license_mit))
+                }
+                Text(
+                    text = stringResource(R.string.settings_about_repo_label),
+                    style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr),
+                    color = colors.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Icon(
+                painter = painterResource(R.drawable.ic_settings_external),
+                contentDescription = null,
+                tint = colors.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AboutLicenseBadge(
+    text: String,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
+    val colors = MaterialTheme.colorScheme
+    Text(
+        text = text,
+        modifier = modifier
+            .clip(CircleShape)
+            .background(colors.primaryContainer.copy(alpha = 0.55f), CircleShape)
+            .border(1.dp, colors.primaryContainer, CircleShape)
+            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Ltr),
+        fontWeight = FontWeight.Bold,
+        color = colors.onPrimaryContainer
+    )
+}
+
+@Composable
+private fun AboutFooter(versionLabel: String) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.app_name_kanji),
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontFamily = FontFamily.Default,
+                    fontSize = 15.sp,
+                    letterSpacing = 2.sp
+                ),
+                fontWeight = FontWeight.Bold,
+                color = colors.primary
+            )
+            Text(
+                text = versionLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = stringResource(R.string.settings_about_made_with),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant
+            )
+            Icon(
+                painter = painterResource(R.drawable.ic_settings_heart),
+                contentDescription = null,
+                tint = colors.primary,
+                modifier = Modifier.size(13.dp)
+            )
+            Text(
+                text = stringResource(R.string.settings_about_made_for),
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsHeader() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 4.dp, top = 8.dp, end = 4.dp, bottom = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = stringResource(R.string.settings_title),
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            text = stringResource(R.string.settings_title_kanji),
+            modifier = Modifier.clearAndSetSemantics { },
+            style = MaterialTheme.typography.headlineSmall.copy(fontFamily = FontFamily.Default),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+        )
+    }
+}
+
+@Composable
+private fun SettingsSectionCard(
+    title: String,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    titlePadding: PaddingValues = PaddingValues(horizontal = 4.dp),
+    spacing: Dp = 14.dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = SettingsCardShape,
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(contentPadding),
+            verticalArrangement = Arrangement.spacedBy(spacing)
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier
+                    .padding(titlePadding)
+                    .semantics { heading() },
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            content()
+        }
+    }
+}
+
+private data class ThemeModeOption(
+    val mode: AppThemeMode,
+    val iconRes: Int,
+    val label: String
+)
+
+@Composable
+private fun ThemeModeSegmentedControl(
+    selectedMode: AppThemeMode,
+    onModeSelected: (AppThemeMode) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val options = listOf(
+        ThemeModeOption(AppThemeMode.System, R.drawable.ic_settings_theme_system, stringResource(R.string.settings_theme_system)),
+        ThemeModeOption(AppThemeMode.Light, R.drawable.ic_settings_theme_light, stringResource(R.string.settings_theme_light)),
+        ThemeModeOption(AppThemeMode.Dark, R.drawable.ic_settings_theme_dark, stringResource(R.string.settings_theme_dark))
+    )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background, ShinjikaiUi.PillShape)
+            .padding(4.dp)
+            .selectableGroup(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        options.forEach { option ->
+            val selected = option.mode == selectedMode
+            val containerColor by animateColorAsState(
+                targetValue = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                label = "themeOptionContainer"
+            )
+            val contentColor by animateColorAsState(
+                targetValue = if (selected) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                label = "themeOptionContent"
+            )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp)
+                    .clip(ShinjikaiUi.PillShape)
+                    .background(containerColor)
+                    .selectable(
+                        selected = selected,
+                        role = Role.RadioButton,
+                        onClick = { onModeSelected(option.mode) }
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    painter = painterResource(option.iconRes),
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = option.label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = contentColor,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsIconChip(
+    iconRes: Int,
+    size: Dp = 36.dp,
+    iconSize: Dp = 20.dp,
+    shape: Shape = SettingsChipShape
+) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .background(MaterialTheme.colorScheme.surfaceVariant, shape),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painter = painterResource(iconRes),
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(iconSize)
+        )
+    }
+}
+
+@Composable
+private fun SettingsRowText(
+    title: String,
+    description: String,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    iconRes: Int,
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(
+                value = checked,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            ),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SettingsIconChip(iconRes = iconRes)
+        SettingsRowText(
+            title = title,
+            description = description,
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = null
+        )
+    }
+}
+
+@Composable
+private fun SettingsTile(
+    iconRes: Int,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        modifier = modifier.heightIn(min = 160.dp),
+        shape = SettingsTileShape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                SettingsIconChip(
+                    iconRes = iconRes,
+                    size = 44.dp,
+                    iconSize = 22.dp,
+                    shape = SettingsTileChipShape
+                )
+                Icon(
+                    painter = painterResource(R.drawable.ic_settings_chevron),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(22.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 16.sp),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -249,127 +713,311 @@ fun LocalDictionaryScreenContent(
     onDeleteDictionary: (String) -> Unit,
     onGoBack: () -> Unit
 ) {
+    val dictionaries = uiState.installedDictionaries
+    val activeCount = dictionaries.count { it.enabled || it.isBuiltIn }
+    val entryCountLabel = remember(uiState.offlineTermCount) {
+        NumberFormat.getIntegerInstance().format(uiState.offlineTermCount)
+    }
+    val lastUpdateLabel = remember(uiState.offlineLastImportEpochMs) {
+        uiState.offlineLastImportEpochMs?.let {
+            DateFormat.getDateInstance(DateFormat.MEDIUM).format(it)
+        } ?: "—"
+    }
+
     Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_local_dictionary)) },
-                navigationIcon = {
-                    IconButton(onClick = onGoBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.nav_back)
-                        )
-                    }
-                },
-                actions = {
-                    FilledTonalIconButton(
-                        onClick = onPickOfflineZip,
-                        enabled = !uiState.isImportingOfflineData,
-                        colors = IconButtonDefaults.filledTonalIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Add,
-                            contentDescription = stringResource(R.string.settings_offline_import_file)
-                        )
-                    }
-                },
-                colors = shinjikaiTopAppBarColors()
-            )
-        }
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
-                .padding(bottom = 12.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = stringResource(R.string.settings_dictionary_page_description),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
+            SettingsSubpageHeader(
+                title = stringResource(R.string.settings_local_dictionary),
+                onGoBack = onGoBack
             )
 
-            Text(
-                text = stringResource(R.string.settings_installed_dictionaries_title),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
-                letterSpacing = 1.5.sp,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-
-            InstalledDictionariesCard(
-                dictionaries = uiState.installedDictionaries,
-                isImporting = uiState.isImportingOfflineData,
-                onToggleDictionary = onToggleDictionary,
-                onDeleteDictionary = onDeleteDictionary,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            if (uiState.isImportingOfflineData) {
-                ShinjikaiCard(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Text(uiState.offlineImportPhase ?: stringResource(R.string.settings_loading_inline))
-                    }
-                    LinearProgressIndicator(
-                        progress = { uiState.offlineImportProgress },
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp)
+            SettingsSectionCard(
+                title = stringResource(R.string.settings_overview_title),
+                spacing = 12.dp
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    DictionaryStatTile(
+                        iconRes = R.drawable.ic_settings_entries,
+                        value = entryCountLabel,
+                        label = stringResource(R.string.settings_entries_offline_label),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                    )
+                    DictionaryStatTile(
+                        iconRes = R.drawable.ic_settings_clock,
+                        value = lastUpdateLabel,
+                        label = stringResource(R.string.settings_offline_metric_last_update_title),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
                 }
             }
+
+            if (dictionaries.isNotEmpty()) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = SettingsCardShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(modifier = Modifier.padding(start = 4.dp, top = 16.dp, end = 4.dp, bottom = 6.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(R.string.settings_dictionaries_tile_title),
+                                modifier = Modifier.semantics { heading() },
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_active_dictionaries,
+                                    activeCount,
+                                    dictionaries.size
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        dictionaries.forEachIndexed { index, dictionary ->
+                            InstalledDictionaryRow(
+                                dictionary = dictionary,
+                                isImporting = uiState.isImportingOfflineData,
+                                onToggle = { enabled -> onToggleDictionary(dictionary.id, enabled) },
+                                onDelete = { onDeleteDictionary(dictionary.id) }
+                            )
+                            if (index < dictionaries.lastIndex) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(start = 12.dp, end = 64.dp),
+                                    color = MaterialTheme.colorScheme.outlineVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (uiState.isImportingOfflineData) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    shape = SettingsCardShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .background(MaterialTheme.colorScheme.primaryContainer, SettingsTileChipShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_settings_download),
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            SettingsRowText(
+                                title = stringResource(R.string.settings_offline_status_importing),
+                                description = uiState.offlineImportPhase
+                                    ?: stringResource(R.string.settings_loading_inline),
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { uiState.offlineImportProgress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(8.dp)
+                                .clip(ShinjikaiUi.PillShape),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                            gapSize = 0.dp,
+                            drawStopIndicator = {}
+                        )
+                    }
+                }
+            }
+
+            AddDictionaryButton(
+                enabled = !uiState.isImportingOfflineData,
+                onClick = onPickOfflineZip
+            )
 
             uiState.offlineImportStatus?.let { status ->
                 StatusMessage(message = status, isError = uiState.offlineImportError)
             }
 
+            Text(
+                text = stringResource(R.string.settings_dictionaries_footer),
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
 
 @Composable
-private fun InstalledDictionariesCard(
-    dictionaries: List<InstalledDictionaryUiItem>,
-    isImporting: Boolean,
-    onToggleDictionary: (String, Boolean) -> Unit,
-    onDeleteDictionary: (String) -> Unit,
+private fun DictionaryStatTile(
+    iconRes: Int,
+    value: String,
+    label: String,
     modifier: Modifier = Modifier
 ) {
-    Card(
+    Surface(
         modifier = modifier,
-        shape = ShinjikaiUi.CardShape,
-        colors = ShinjikaiUi.cardColors(),
-        border = ShinjikaiUi.cardBorder()
+        shape = SettingsTileShape,
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column {
-            dictionaries.forEachIndexed { index, dictionary ->
-                InstalledDictionaryRow(
-                    dictionary = dictionary,
-                    isImporting = isImporting,
-                    onToggle = { enabled -> onToggleDictionary(dictionary.id, enabled) },
-                    onDelete = { onDeleteDictionary(dictionary.id) }
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            SettingsIconChip(iconRes = iconRes, size = 40.dp, shape = SettingsTileChipShape)
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                if (index < dictionaries.lastIndex) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-                    )
-                }
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
 @Composable
+private fun DictionaryTag(text: String, highlighted: Boolean) {
+    Text(
+        text = text,
+        modifier = Modifier
+            .background(
+                color = if (highlighted) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceVariant
+                },
+                shape = ShinjikaiUi.PillShape
+            )
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = if (highlighted) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        maxLines = 1
+    )
+}
+
+@Composable
+private fun AddDictionaryButton(
+    enabled: Boolean,
+    onClick: () -> Unit,
+    title: String = stringResource(R.string.settings_add_dictionary),
+    description: String = stringResource(R.string.settings_add_dictionary_hint)
+) {
+    val dashColor = MaterialTheme.colorScheme.outline.copy(alpha = if (enabled) 0.7f else 0.35f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 76.dp)
+            .clip(SettingsCardShape)
+            .drawBehind {
+                val stroke = 1.5.dp.toPx()
+                drawRoundRect(
+                    color = dashColor,
+                    topLeft = Offset(stroke / 2, stroke / 2),
+                    size = Size(size.width - stroke, size.height - stroke),
+                    cornerRadius = CornerRadius(28.dp.toPx()),
+                    style = Stroke(
+                        width = stroke,
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 6.dp.toPx()))
+                    )
+                )
+            }
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .background(
+                    color = if (enabled) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.surfaceVariant
+                    },
+                    shape = SettingsTileChipShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                painter = painterResource(R.drawable.ic_settings_add),
+                contentDescription = null,
+                tint = if (enabled) {
+                    MaterialTheme.colorScheme.onPrimary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(22.dp)
+            )
+        }
+        SettingsRowText(
+            title = title,
+            description = description,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class)
 private fun InstalledDictionaryRow(
     dictionary: InstalledDictionaryUiItem,
     isImporting: Boolean,
@@ -377,7 +1025,7 @@ private fun InstalledDictionaryRow(
     onDelete: () -> Unit
 ) {
     var showDeleteConfirmation by remember(dictionary.id) { mutableStateOf(false) }
-    val accent = if (dictionary.isBuiltIn) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+    val canDelete = !dictionary.isBuiltIn && !isImporting
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value == SwipeToDismissBoxValue.EndToStart) {
@@ -386,21 +1034,28 @@ private fun InstalledDictionaryRow(
             false
         }
     )
+    val subtitle = if (dictionary.isBuiltIn) {
+        dictionary.source
+    } else {
+        dictionary.fileName ?: dictionary.source
+    }
+    val toggleLabel = stringResource(R.string.settings_toggle_dictionary_a11y, dictionary.name)
 
     SwipeToDismissBox(
         state = dismissState,
         enableDismissFromStartToEnd = false,
-        enableDismissFromEndToStart = !dictionary.isBuiltIn && !isImporting,
+        enableDismissFromEndToStart = canDelete,
         backgroundContent = {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .clip(SettingsTileShape)
                     .background(MaterialTheme.colorScheme.errorContainer)
                     .padding(horizontal = 20.dp),
                 contentAlignment = Alignment.CenterEnd
             ) {
                 Icon(
-                    imageVector = Icons.Filled.Delete,
+                    painter = painterResource(R.drawable.ic_settings_trash),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -411,68 +1066,89 @@ private fun InstalledDictionaryRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                    .heightIn(min = 64.dp)
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(modifier = Modifier.size(12.dp).background(accent, CircleShape))
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    Text(dictionary.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Text(dictionary.source, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f))
-                    Text("ID: ${dictionary.id}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
-                    dictionary.fileName?.let { fileName ->
-                        Text(fileName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f))
+                SettingsIconChip(iconRes = R.drawable.ic_nav_browse, size = 40.dp, shape = SettingsTileChipShape)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = dictionary.name,
+                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        DictionaryTag(
+                            text = if (dictionary.isBuiltIn) {
+                                stringResource(R.string.settings_builtin_tag)
+                            } else {
+                                "Yomitan"
+                            },
+                            highlighted = dictionary.isBuiltIn
+                        )
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
-                Switch(
-                    checked = dictionary.enabled,
-                    onCheckedChange = onToggle,
-                    enabled = !dictionary.isBuiltIn && !isImporting
-                )
+                if (!dictionary.isBuiltIn) {
+                    IconButton(
+                        onClick = { showDeleteConfirmation = true },
+                        enabled = canDelete
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_settings_trash),
+                            contentDescription = stringResource(
+                                R.string.settings_delete_dictionary_a11y,
+                                dictionary.name
+                            ),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    Switch(
+                        checked = dictionary.enabled,
+                        onCheckedChange = onToggle,
+                        enabled = !isImporting,
+                        modifier = Modifier.semantics { contentDescription = toggleLabel }
+                    )
+                }
             }
         }
     )
 
     if (showDeleteConfirmation) {
-        AlertDialog(
+        ShinjikaiDialog(
             onDismissRequest = { showDeleteConfirmation = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Filled.Delete,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error
-                )
+            title = stringResource(R.string.settings_delete_dictionary_title),
+            message = stringResource(R.string.settings_delete_dictionary_message, dictionary.name),
+            iconRes = R.drawable.ic_settings_trash,
+            confirmLabel = stringResource(R.string.settings_delete_dictionary_confirm),
+            onConfirm = {
+                showDeleteConfirmation = false
+                onDelete()
             },
-            title = { Text(stringResource(R.string.settings_delete_dictionary_title)) },
-            text = {
-                Text(
-                    stringResource(
-                        R.string.settings_delete_dictionary_message,
-                        dictionary.name
-                    )
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirmation = false
-                        onDelete()
-                    }
-                ) {
-                    Text(stringResource(R.string.settings_delete_dictionary_confirm))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirmation = false }) {
-                    Text(stringResource(R.string.action_cancel))
-                }
-            }
+            destructive = true
         )
     }
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 fun AnkiExporterSettingsScreenContent(
     selectedDeckName: String,
     onSelectDeck: (String) -> Unit,
@@ -488,8 +1164,8 @@ fun AnkiExporterSettingsScreenContent(
     }
     var availableDecks by remember { mutableStateOf<List<String>>(emptyList()) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
-    var deckMenuExpanded by remember { mutableStateOf(false) }
     var isLoadingDecks by remember { mutableStateOf(false) }
+    var showNewDeckDialog by rememberSaveable { mutableStateOf(false) }
     suspend fun refreshAvailableDecks() {
         statusMessage = null
         isLoadingDecks = true
@@ -527,136 +1203,455 @@ fun AnkiExporterSettingsScreenContent(
     }
 
     Scaffold(
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_anki_exporter_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onGoBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.nav_back)
-                        )
-                    }
-                },
-                colors = shinjikaiTopAppBarColors()
-            )
-        }
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, top = 12.dp, end = 16.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            ShinjikaiCard(modifier = Modifier.fillMaxWidth()) {
-                SectionLabel(text = stringResource(R.string.settings_anki_selected_deck))
-                Text(
-                    selectedDeckName,
-                    modifier = Modifier.padding(top = 8.dp),
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    stringResource(R.string.settings_anki_selected_deck_description),
-                    modifier = Modifier.padding(top = 8.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
-                )
-            }
+            SettingsSubpageHeader(
+                title = stringResource(R.string.settings_anki_exporter_title),
+                onGoBack = onGoBack
+            )
 
-            if (!hasAnkiDatabasePermission && canRequestDirectAnkiAdd) {
-                Button(
-                    onClick = { permissionLauncher.launch(ANKIDROID_PERMISSION) },
-                    modifier = Modifier.fillMaxWidth()
+            SettingsSectionCard(title = stringResource(R.string.settings_anki_selected_deck)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(stringResource(R.string.settings_anki_allow_access_button))
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, SettingsTileChipShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_anki),
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                    val deckPath = selectedDeckName.split(AnkiDeckSeparator)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = deckPath.last(),
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (deckPath.size > 1) {
+                            Text(
+                                text = stringResource(
+                                    R.string.settings_anki_inside_parent,
+                                    deckPath.dropLast(1).joinToString(AnkiDeckPathDisplaySeparator)
+                                ),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
+                Text(
+                    text = stringResource(R.string.settings_anki_selected_deck_description),
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            if (isLoadingDecks) {
-                ShinjikaiCard(modifier = Modifier.fillMaxWidth()) {
+            val showConnectionCard = !canRequestDirectAnkiAdd ||
+                !hasAnkiDatabasePermission ||
+                isLoadingDecks ||
+                statusMessage != null
+            if (showConnectionCard) {
+                SettingsSectionCard(title = stringResource(R.string.settings_anki_connection_title)) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        if (isLoadingDecks) {
+                            Box(modifier = Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                            }
+                        } else {
+                            SettingsIconChip(
+                                iconRes = when {
+                                    !canRequestDirectAnkiAdd -> R.drawable.ic_settings_info
+                                    !hasAnkiDatabasePermission -> R.drawable.ic_settings_lock
+                                    else -> R.drawable.ic_settings_info
+                                }
+                            )
+                        }
                         Text(
-                            text = stringResource(R.string.settings_loading_inline),
-                            style = MaterialTheme.typography.bodyMedium
+                            text = if (isLoadingDecks) {
+                                stringResource(R.string.settings_loading_inline)
+                            } else {
+                                statusMessage.orEmpty()
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .semantics { liveRegion = LiveRegionMode.Polite },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    when {
+                        !canRequestDirectAnkiAdd -> SettingsPillButton(
+                            text = stringResource(R.string.settings_anki_install_button),
+                            iconRes = R.drawable.ic_settings_external,
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=com.ichi2.anki"))
+                                    )
+                                }.onFailure {
+                                    context.startActivity(
+                                        Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse("https://play.google.com/store/apps/details?id=com.ichi2.anki")
+                                        )
+                                    )
+                                }
+                            }
+                        )
+                        !hasAnkiDatabasePermission -> SettingsPillButton(
+                            text = stringResource(R.string.settings_anki_allow_access_button),
+                            iconRes = R.drawable.ic_settings_lock,
+                            onClick = { permissionLauncher.launch(ANKIDROID_PERMISSION) }
+                        )
+                        !isLoadingDecks && availableDecks.isEmpty() -> SettingsPillButton(
+                            text = stringResource(R.string.settings_anki_refresh),
+                            iconRes = R.drawable.ic_settings_refresh,
+                            primary = false,
+                            onClick = { coroutineScope.launch { refreshAvailableDecks() } }
                         )
                     }
                 }
             }
 
-            statusMessage?.let { message ->
-                ShinjikaiCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(text = message, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-
             if (availableDecks.isNotEmpty()) {
-                ShinjikaiCard(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        stringResource(R.string.settings_anki_available_decks),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    ExposedDropdownMenuBox(
-                        expanded = deckMenuExpanded,
-                        onExpandedChange = { deckMenuExpanded = !deckMenuExpanded },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
+                val deckGroups = remember(availableDecks, selectedDeckName) {
+                    groupAnkiDecks((availableDecks + selectedDeckName).distinct())
+                }
+                val standaloneTitle = stringResource(R.string.settings_anki_standalone_decks)
+                val parentDeckLabel = stringResource(R.string.settings_anki_parent_deck_all)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = SettingsCardShape,
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(start = 14.dp, top = 8.dp, end = 14.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        OutlinedTextField(
-                            value = selectedDeckName,
-                            onValueChange = {},
-                            readOnly = true,
+                        Row(
                             modifier = Modifier
-                                .menuAnchor()
-                                .fillMaxWidth(),
-                            label = { Text(stringResource(R.string.settings_anki_deck_field_label)) },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = deckMenuExpanded) }
-                        )
-                        ExposedDropdownMenu(
-                            expanded = deckMenuExpanded,
-                            onDismissRequest = { deckMenuExpanded = false }
+                                .fillMaxWidth()
+                                .padding(start = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            availableDecks.forEach { deckName ->
-                                DropdownMenuItem(
-                                    text = { Text(deckName) },
-                                    onClick = {
-                                        onSelectDeck(deckName)
-                                        deckMenuExpanded = false
-                                    },
-                                    leadingIcon = {
-                                        if (deckName == selectedDeckName) {
-                                            Icon(
-                                                imageVector = Icons.Filled.CheckCircle,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
+                            Text(
+                                text = stringResource(R.string.settings_anki_choose_deck) + " · " +
+                                    stringResource(R.string.settings_anki_deck_count, availableDecks.size),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .semantics { heading() },
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            IconButton(
+                                onClick = { coroutineScope.launch { refreshAvailableDecks() } },
+                                enabled = !isLoadingDecks
+                            ) {
+                                Icon(
+                                    painter = painterResource(R.drawable.ic_settings_refresh),
+                                    contentDescription = stringResource(R.string.settings_anki_refresh),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(20.dp)
                                 )
+                            }
+                        }
+                        deckGroups.forEach { group ->
+                            Column(
+                                modifier = Modifier.selectableGroup(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AnkiDeckGroupHeader(title = group.parent ?: standaloneTitle)
+                                FlowRow(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    group.decks.forEach { deckName ->
+                                        AnkiDeckChip(
+                                            label = when {
+                                                group.parent == null -> deckName
+                                                deckName == group.parent -> parentDeckLabel
+                                                else -> deckName
+                                                    .removePrefix(group.parent + AnkiDeckSeparator)
+                                                    .split(AnkiDeckSeparator)
+                                                    .joinToString(AnkiDeckPathDisplaySeparator)
+                                            },
+                                            fullName = deckName,
+                                            selected = deckName == selectedDeckName,
+                                            onSelect = { onSelectDeck(deckName) }
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
 
-            OutlinedButton(
-                onClick = { onSelectDeck("Shinjikai") },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(stringResource(R.string.settings_anki_use_default_deck))
+            if (canRequestDirectAnkiAdd && hasAnkiDatabasePermission) {
+                AddDictionaryButton(
+                    enabled = true,
+                    onClick = { showNewDeckDialog = true },
+                    title = stringResource(R.string.settings_anki_new_deck),
+                    description = stringResource(R.string.settings_anki_new_deck_description)
+                )
             }
 
-            Spacer(modifier = Modifier.height(128.dp))
+            if (selectedDeckName != DefaultAnkiDeckName) {
+                SettingsPillButton(
+                    text = stringResource(R.string.settings_anki_use_default_deck),
+                    iconRes = R.drawable.ic_settings_refresh,
+                    primary = false,
+                    onClick = { onSelectDeck(DefaultAnkiDeckName) }
+                )
+            }
         }
+    }
+
+    if (showNewDeckDialog) {
+        AnkiNewDeckDialog(
+            onDismiss = { showNewDeckDialog = false },
+            onConfirm = { name ->
+                showNewDeckDialog = false
+                onSelectDeck(name)
+            }
+        )
+    }
+}
+
+private const val DefaultAnkiDeckName = "Shinjikai"
+private const val AnkiDeckSeparator = "::"
+private const val AnkiDeckPathDisplaySeparator = " › "
+
+private data class AnkiDeckGroup(val parent: String?, val decks: List<String>)
+
+/**
+ * Groups Anki deck names by their top-level parent ("日本語::JLPT N2" goes under "日本語").
+ * Decks with no children and no parent come first as one "standalone" group.
+ */
+private fun groupAnkiDecks(decks: List<String>): List<AnkiDeckGroup> {
+    val sorted = decks.filter { it.isNotBlank() }.sortedWith(String.CASE_INSENSITIVE_ORDER)
+    val parents = sorted
+        .filter { it.contains(AnkiDeckSeparator) }
+        .map { it.substringBefore(AnkiDeckSeparator) }
+        .toSet()
+    val standalone = sorted.filter { !it.contains(AnkiDeckSeparator) && it !in parents }
+    val grouped = parents.sortedWith(String.CASE_INSENSITIVE_ORDER).map { parent ->
+        AnkiDeckGroup(
+            parent = parent,
+            decks = sorted.filter { it == parent || it.startsWith(parent + AnkiDeckSeparator) }
+        )
+    }
+    return buildList {
+        if (standalone.isNotEmpty()) add(AnkiDeckGroup(parent = null, decks = standalone))
+        addAll(grouped)
+    }
+}
+
+@Composable
+private fun AnkiDeckGroupHeader(title: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = title,
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant)
+        )
+    }
+}
+
+@Composable
+private fun AnkiDeckChip(
+    label: String,
+    fullName: String,
+    selected: Boolean,
+    onSelect: () -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .heightIn(min = 40.dp)
+            .clip(CircleShape)
+            .then(
+                if (selected) {
+                    Modifier.background(colors.primary, CircleShape)
+                } else {
+                    Modifier
+                        .background(colors.background, CircleShape)
+                        .border(1.dp, colors.outlineVariant, CircleShape)
+                }
+            )
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onSelect)
+            .semantics { contentDescription = fullName }
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (selected) {
+            Icon(
+                painter = painterResource(R.drawable.ic_settings_check),
+                contentDescription = null,
+                tint = colors.onPrimary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp),
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) colors.onPrimary else colors.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun AnkiNewDeckDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var name by rememberSaveable { mutableStateOf("") }
+    val trimmed = name.trim()
+    ShinjikaiDialog(
+        onDismissRequest = onDismiss,
+        title = stringResource(R.string.settings_anki_new_deck),
+        iconRes = R.drawable.ic_anki,
+        confirmLabel = stringResource(R.string.settings_anki_new_deck_confirm),
+        onConfirm = { onConfirm(trimmed) },
+        confirmEnabled = trimmed.isNotEmpty()
+    ) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = { name = it },
+            singleLine = true,
+            label = { Text(stringResource(R.string.settings_anki_new_deck_name)) },
+            shape = RoundedCornerShape(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Text(
+            text = stringResource(R.string.settings_anki_new_deck_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun SettingsPillButton(
+    text: String,
+    iconRes: Int,
+    onClick: () -> Unit,
+    primary: Boolean = true
+) {
+    val colors = MaterialTheme.colorScheme
+    Surface(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 52.dp),
+        shape = ShinjikaiUi.PillShape,
+        color = if (primary) colors.primary else Color.Transparent,
+        contentColor = if (primary) colors.onPrimary else colors.onSurface,
+        border = if (primary) null else BorderStroke(1.dp, colors.outlineVariant)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                painter = painterResource(iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSubpageHeader(
+    title: String,
+    onGoBack: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            onClick = onGoBack,
+            modifier = Modifier.size(44.dp),
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_nav_back),
+                    contentDescription = stringResource(R.string.nav_back),
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        Text(
+            text = title,
+            modifier = Modifier.semantics { heading() },
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
     }
 }
 
@@ -664,496 +1659,6 @@ private suspend fun loadAnkiDeckNamesOffMain(context: Context): List<String> =
     withContext(Dispatchers.IO) {
         runCatching { AnkiExporter.loadDeckNames(context) }.getOrDefault(emptyList())
     }
-
-@Composable
-private fun SettingsLinkRow(
-    icon: ImageVector? = null,
-    painterRes: Int? = null,
-    title: String,
-    description: String,
-    contentDescription: String,
-    trailingIcon: ImageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(vertical = 6.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            when {
-                painterRes != null -> SettingsLeadingPainterIcon(painterRes = painterRes)
-                icon != null -> SettingsLeadingIcon(icon = icon)
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
-                )
-            }
-        }
-        Icon(
-            imageVector = trailingIcon,
-            contentDescription = contentDescription,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp)
-        )
-    }
-}
-
-@Composable
-private fun ThemeModeSelector(
-    selectedMode: AppThemeMode,
-    onModeSelected: (AppThemeMode) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val options = listOf(
-        ThemeModeOption(
-            mode = AppThemeMode.System,
-            icon = Icons.Filled.Public,
-            label = stringResource(R.string.settings_theme_system)
-        ),
-        ThemeModeOption(
-            mode = AppThemeMode.Light,
-            icon = Icons.Filled.Palette,
-            label = stringResource(R.string.settings_theme_light)
-        ),
-        ThemeModeOption(
-            mode = AppThemeMode.Dark,
-            icon = Icons.Filled.DarkMode,
-            label = stringResource(R.string.settings_theme_dark)
-        )
-    )
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.settings_theme_mode),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            options.forEach { option ->
-                val selected = selectedMode == option.mode
-                Surface(
-                    onClick = { onModeSelected(option.mode) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(76.dp),
-                    shape = ShinjikaiUi.CompactShape,
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        ShinjikaiUi.panelColor(alpha = 0.24f)
-                    },
-                    border = if (selected) {
-                        ShinjikaiUi.cardBorder(alpha = 0.76f)
-                    } else {
-                        ShinjikaiUi.cardBorder(alpha = 0.24f)
-                    }
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(7.dp)
-                    ) {
-                        Icon(
-                            imageVector = option.icon,
-                            contentDescription = option.label,
-                            tint = if (selected) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            }
-                        )
-                        Text(
-                            text = option.label,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = if (selected) {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.onSurface
-                            },
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private data class ThemeModeOption(
-    val mode: AppThemeMode,
-    val icon: ImageVector,
-    val label: String
-)
-
-@Composable
-private fun SettingsLeadingPainterIcon(painterRes: Int) {
-    Box(
-        modifier = Modifier.size(36.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-        ) {
-            Box(
-                modifier = Modifier.size(36.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(painterRes),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun LocalDictionarySummaryCard(
-    uiState: SettingsUiState,
-    onClick: () -> Unit
-) {
-    val hasOfflineDictionary = uiState.offlineTermCount > 0
-    val summary = when {
-        uiState.isImportingOfflineData ->
-            uiState.offlineImportPhase ?: stringResource(R.string.settings_loading_inline)
-        !uiState.isOfflineDictionaryStateLoaded ->
-            stringResource(R.string.settings_loading_inline)
-        uiState.offlineImportError ->
-            uiState.offlineImportStatus ?: stringResource(R.string.offline_import_failure)
-        hasOfflineDictionary ->
-            stringResource(R.string.settings_local_summary_ready)
-        else ->
-            stringResource(R.string.settings_local_summary_missing)
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(role = Role.Button, onClick = onClick)
-            .padding(14.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        SettingsLeadingIcon(icon = Icons.Filled.DownloadForOffline)
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.settings_local_dictionary),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(
-                text = summary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
-            )
-        }
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = stringResource(R.string.settings_local_dictionary),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(24.dp)
-        )
-    }
-}
-
-@Composable
-private fun OfflineImporterCard(
-    uiState: SettingsUiState,
-    onPickOfflineZip: () -> Unit,
-    onOpenDownloads: () -> Unit
-) {
-    val hasOfflineDictionary = uiState.offlineTermCount > 0
-    val statusUi = offlineImportStatusUi(uiState, hasOfflineDictionary)
-    val locale = Locale.getDefault()
-    val importDateFormatter = remember(locale) {
-        DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale)
-    }
-    val summaryText = when {
-        uiState.isImportingOfflineData ->
-            uiState.offlineImportPhase ?: stringResource(R.string.settings_loading_inline)
-        !uiState.isOfflineDictionaryStateLoaded ->
-            stringResource(R.string.settings_loading_inline)
-        hasOfflineDictionary ->
-            stringResource(R.string.settings_offline_import_summary_ready, uiState.offlineTermCount)
-        else ->
-            stringResource(R.string.settings_offline_import_summary_empty)
-    }
-    val latestUpdateText = uiState.offlineLastImportEpochMs
-        ?.let { epochMs -> formatEpochAsLocal(epochMs, importDateFormatter) }
-        ?: stringResource(R.string.settings_last_import_never)
-    val latestSourceText = uiState.offlineLastImportSource?.let(::formatImportSourceName)
-        ?: stringResource(R.string.settings_last_import_source_none)
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = ShinjikaiUi.CardShape,
-        colors = ShinjikaiUi.cardColors(),
-        border = ShinjikaiUi.cardBorder()
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .background(
-                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-                            shape = ShinjikaiUi.CompactShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.DownloadForOffline,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Column(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_local_dictionary),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    StatusBadge(
-                        label = statusUi.label,
-                        color = statusUi.color
-                    )
-                }
-            }
-
-            Text(
-                text = summaryText,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f)
-            )
-
-            ImporterMetricRow(
-                title = stringResource(R.string.settings_local_count, uiState.offlineTermCount),
-                subtitle = stringResource(R.string.settings_offline_metric_count_subtitle)
-            )
-
-            ImporterMetricRow(
-                title = stringResource(R.string.settings_offline_metric_last_update_title),
-                subtitle = latestUpdateText
-            )
-
-            ImporterMetricRow(
-                title = stringResource(R.string.settings_offline_metric_source_title),
-                subtitle = latestSourceText
-            )
-
-            ImporterMetricRow(
-                title = stringResource(R.string.settings_offline_metric_supported_files_title),
-                subtitle = stringResource(R.string.settings_offline_metric_supported_files_subtitle)
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Button(
-                    onClick = onPickOfflineZip,
-                    enabled = !uiState.isImportingOfflineData,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    if (uiState.isImportingOfflineData) {
-                        Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onPrimary
-                                )
-                                Text(text = stringResource(R.string.settings_offline_indexing_inline))
-                            }
-                    } else {
-                        Text(stringResource(R.string.settings_offline_import_file))
-                    }
-                }
-                OutlinedButton(
-                    onClick = onOpenDownloads,
-                    modifier = Modifier.weight(1f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.35f))
-                ) {
-                    Text(stringResource(R.string.settings_offline_archives_title))
-                }
-            }
-
-            if (uiState.isImportingOfflineData) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = uiState.offlineImportPhase ?: stringResource(R.string.settings_loading_inline),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Text(
-                            text = "${(uiState.offlineImportProgress * 100).toInt()}%",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        )
-                    }
-                    LinearProgressIndicator(
-                        progress = { uiState.offlineImportProgress },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-
-            uiState.offlineImportStatus?.let { status ->
-                StatusMessage(
-                    message = status,
-                    isError = uiState.offlineImportError
-                )
-            }
-        }
-    }
-}
-
-private fun formatImportSourceName(source: String): String {
-    return when (source) {
-        "japanesearabic-yomitan-v2" -> "Yomitan V2"
-        "raw-shinjikai-jp-ar-picked-zip" -> "Raw Shinjikai (ZIP)"
-        "raw-shinjikai-jp-ar-picked-tar-xz" -> "Raw Shinjikai (TAR.XZ)"
-        "raw-shinjikai-jp-ar-jsonl" -> "Raw Shinjikai (JSONL)"
-        "bundled-1selxo-shinjikai-jsonl" -> "Bundled 1Selxo/Shinjikai"
-        else -> source
-    }
-}
-
-@Composable
-private fun offlineImportStatusUi(
-    uiState: SettingsUiState,
-    hasOfflineDictionary: Boolean = uiState.offlineTermCount > 0
-): OfflineImportStatusUi {
-    return when {
-        uiState.isImportingOfflineData -> OfflineImportStatusUi(
-            label = stringResource(R.string.settings_offline_status_importing),
-            color = MaterialTheme.colorScheme.primary
-        )
-        !uiState.isOfflineDictionaryStateLoaded -> OfflineImportStatusUi(
-            label = stringResource(R.string.settings_loading_inline),
-            color = MaterialTheme.colorScheme.primary
-        )
-        uiState.offlineImportError -> OfflineImportStatusUi(
-            label = stringResource(R.string.settings_offline_status_retry),
-            color = MaterialTheme.colorScheme.error
-        )
-        hasOfflineDictionary -> OfflineImportStatusUi(
-            label = stringResource(R.string.settings_offline_status_ready),
-            color = ShinjikaiUi.SuccessColor
-        )
-        else -> OfflineImportStatusUi(
-            label = stringResource(R.string.settings_offline_status_missing),
-            color = MaterialTheme.colorScheme.tertiary
-        )
-    }
-}
-
-@Composable
-private fun StatusBadge(
-    label: String,
-    color: Color
-) {
-    Surface(
-        shape = CircleShape,
-        color = color.copy(alpha = 0.14f)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Filled.TaskAlt,
-                contentDescription = null,
-                tint = color,
-                modifier = Modifier.size(14.dp)
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color = color,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
-}
-
-@Composable
-private fun ImporterMetricRow(
-    title: String,
-    subtitle: String
-) {
-    Surface(
-        shape = ShinjikaiUi.CompactShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.22f)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp)
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.74f)
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Normal,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.84f)
-            )
-        }
-    }
-}
 
 @Composable
 private fun StatusMessage(
@@ -1164,7 +1669,7 @@ private fun StatusMessage(
     val clipboardManager = LocalClipboardManager.current
     val tint = if (isError) MaterialTheme.colorScheme.error else ShinjikaiUi.SuccessColor
     val background = tint.copy(alpha = 0.12f)
-    val icon = if (isError) Icons.Filled.ErrorOutline else Icons.Filled.CheckCircle
+    val iconRes = if (isError) R.drawable.ic_settings_info else R.drawable.ic_settings_check
 
     Surface(
         shape = ShinjikaiUi.CompactShape,
@@ -1178,10 +1683,12 @@ private fun StatusMessage(
             verticalAlignment = Alignment.Top
         ) {
             Icon(
-                imageVector = icon,
+                painter = painterResource(iconRes),
                 contentDescription = null,
                 tint = tint,
-                modifier = Modifier.padding(top = 2.dp)
+                modifier = Modifier
+                    .padding(top = 2.dp)
+                    .size(20.dp)
             )
             Column(
                 modifier = Modifier.weight(1f),
@@ -1205,7 +1712,7 @@ private fun StatusMessage(
                         border = BorderStroke(1.dp, tint.copy(alpha = 0.35f))
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.ContentCopy,
+                            painter = painterResource(R.drawable.ic_settings_copy),
                             contentDescription = null,
                             tint = tint,
                             modifier = Modifier.size(16.dp)
@@ -1217,62 +1724,6 @@ private fun StatusMessage(
                         )
                     }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SettingsToggleRow(
-    icon: ImageVector,
-    label: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    enabled: Boolean = true,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            SettingsLeadingIcon(icon = icon)
-            Text(label, style = MaterialTheme.typography.bodyLarge)
-        }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled
-        )
-    }
-}
-
-@Composable
-private fun SettingsLeadingIcon(icon: ImageVector) {
-    Box(
-        modifier = Modifier.size(36.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            shape = CircleShape,
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-            )
-        ) {
-            Box(
-                modifier = Modifier.size(36.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
             }
         }
     }
