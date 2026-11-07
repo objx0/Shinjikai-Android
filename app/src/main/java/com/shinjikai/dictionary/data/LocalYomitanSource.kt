@@ -5,17 +5,14 @@ import com.google.gson.JsonArray
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-private val MULTISPACE_REGEX = Regex("""\s{2,}""")
-private val ARABIC_DIACRITICS_REGEX = Regex("""[\u064B-\u065F\u0670\u06D6-\u06ED]""")
-private val ARABIC_ALEF_VARIANTS_REGEX = Regex("""[أإآٱ]""")
-private val NON_LETTER_NUMBER_SPACE_REGEX = Regex("""[^\p{L}\p{N}\s]""")
 private val SENTENCE_SPLIT_REGEX = Regex("""[\s\u3000,،;；、。.!?！？()\[\]{}<>\"“”'‘’/\\]+""")
-private val FTS_TOKEN_SPLIT_REGEX = Regex("""\s+""")
 private val FTS_TOKEN_RESERVED_CHARS_REGEX = Regex("""[\*\^:\(\)\[\]{}!\\|&<>~]""")
 private val JAPANESE_PARTICLES = listOf("から", "まで", "より", "だけ", "ほど", "など", "って", "では", "には", "は", "が", "を", "に", "で", "と", "へ", "も", "や", "か", "の")
 private const val DETAIL_CACHE_SIZE = 64
 private const val SEARCH_PLAN_CACHE_SIZE = 64
 private const val FTS_CANDIDATE_POOL = 1500
+private const val ARABIC_WHOLE_WORD_POOL = 5000
+private const val ARABIC_PREFIX_POOL = 2500
 
 private data class DetailCacheKey(
     val id: Int,
@@ -72,7 +69,7 @@ class LocalYomitanSource(
         val offset = pageIndex * pageSize
 
         return runIoCatching {
-            val isArabic = isArabicQuery(query)
+            val isArabic = ArabicSearch.isArabicQuery(query)
             val japaneseSearchPlan = if (!isArabic) getJapaneseSearchPlan(query) else JapaneseSearchPlan.Empty
             val japaneseVariantsBySegment = japaneseSearchPlan.variantsBySegment
             val japaneseSearchCandidates = japaneseSearchPlan.searchCandidates
@@ -83,48 +80,7 @@ class LocalYomitanSource(
             val totalCountDirect: Int?
 
             if (isArabic) {
-                val normalizedQuery = normalizeArabic(query)
-                val tokens = normalizedQuery.split(' ').filter { it.isNotBlank() }
-
-                val ftsCandidates = buildGlossaryOnlyFtsQuery(query)
-                    ?.let { glossaryFtsQuery ->
-                        yomitanDao.searchGlossaryFts(glossaryFtsQuery, limit = 2500)
-                    }
-                    .orEmpty()
-
-                val baseRows = if (ftsCandidates.isNotEmpty()) {
-                    ftsCandidates
-                } else {
-                    yomitanDao.searchArabic(
-                        term = query,
-                        normalizedTerm = normalizedQuery
-                    )
-                }
-
-                allRows = baseRows
-                    .asSequence()
-                    .map { row ->
-                        val normalizedGlossary = normalizeArabic(row.glossary)
-                        val score = scoreArabicMatch(
-                            query = normalizedQuery,
-                            glossary = normalizedGlossary,
-                            tokens = tokens
-                        )
-                        Triple(row, normalizedGlossary, score)
-                    }
-                    .filter { (_, glossary, score) ->
-                        score < Int.MAX_VALUE && glossary.isNotBlank()
-                    }
-                    .sortedWith(
-                        compareBy<Triple<YomitanTermListRow, String, Int>> { it.third }
-                            .thenBy { it.second.length }
-                            .thenBy { it.first.id }
-                    )
-                    .map { it.first }
-                    .distinctBy { row ->
-                        "${row.expression}\u0000${row.reading}\u0000${row.glossary}"
-                    }
-                    .toList()
+                allRows = searchArabicRanked(query)
                 pagedRowsDirect = null
                 totalCountDirect = null
             } else if (ftsQueries.isNotEmpty()) {
@@ -335,40 +291,57 @@ class LocalYomitanSource(
         )
     }
 
-    private fun isArabicQuery(text: String): Boolean {
-        return text.any { ch -> ch in '\u0600'..'\u06FF' || ch in '\u0750'..'\u077F' }
+    /** Ranks Arabic matches the way shinjikai.app does; see [ArabicSearch] for the rules. */
+    private suspend fun searchArabicRanked(rawQuery: String): List<YomitanTermListRow> {
+        val query = ArabicSearch.Query(rawQuery)
+        if (query.isEmpty) return emptyList()
+
+        // Whole-word matches first so the top tiers are never cut off by the prefix pool limit.
+        val ftsCandidates = buildList {
+            buildArabicFtsQuery(query, prefix = false)?.let {
+                addAll(yomitanDao.searchGlossaryFts(it, limit = ARABIC_WHOLE_WORD_POOL))
+            }
+            buildArabicFtsQuery(query, prefix = true)?.let {
+                addAll(yomitanDao.searchGlossaryFts(it, limit = ARABIC_PREFIX_POOL))
+            }
+        }.distinctBy { it.id }
+
+        val candidates = ftsCandidates.ifEmpty {
+            yomitanDao.searchArabic(term = rawQuery.trim(), normalizedTerm = query.normalized)
+        }
+
+        return candidates
+            .asSequence()
+            .mapNotNull { row ->
+                val index = if (row.searchText.isNotBlank()) {
+                    ArabicSearch.Index.parse(row.searchText)
+                } else {
+                    ArabicSearch.indexFromGlossary(row.glossary)
+                }
+                index.match(query, row.difficulty)?.let { row to it }
+            }
+            .sortedWith(
+                compareBy<Pair<YomitanArabicSearchRow, ArabicSearch.Match>> { it.second.tier }
+                    .thenByDescending { (row, match) -> if (match.tier == 0) match.score else row.difficulty }
+                    .thenByDescending { it.first.jlpt }
+                    .thenBy { it.first.id }
+            )
+            .map { it.first.toListRow() }
+            .distinctBy { row -> "${row.expression}\u0000${row.reading}\u0000${row.glossary}" }
+            .toList()
     }
 
-    private fun normalizeArabic(text: String): String {
-        if (text.isBlank()) return ""
-        return text
-            .replace(ARABIC_DIACRITICS_REGEX, "")
-            .replace("ـ", "")
-            .replace(ARABIC_ALEF_VARIANTS_REGEX, "ا")
-            .replace("ى", "ي")
-            .replace("ؤ", "و")
-            .replace("ئ", "ي")
-            .replace("ة", "ه")
-            .replace(NON_LETTER_NUMBER_SPACE_REGEX, " ")
-            .replace(MULTISPACE_REGEX, " ")
-            .trim()
-    }
-
-    private fun scoreArabicMatch(
-        query: String,
-        glossary: String,
-        tokens: List<String>
-    ): Int {
-        if (query.isBlank() || glossary.isBlank()) return Int.MAX_VALUE
-        val hasAllTokens = tokens.all { glossary.contains(it) }
-        if (!hasAllTokens) return Int.MAX_VALUE
-        if (glossary == query) return 0
-        if (glossary.startsWith("$query ")) return 1
-        if (glossary.startsWith(query)) return 2
-        if (containsRegexWhitespaceBoundedMatch(glossary, query)) return 3
-
-        val index = glossary.indexOf(query)
-        return if (index >= 0) 100 + index else Int.MAX_VALUE
+    private fun buildArabicFtsQuery(query: ArabicSearch.Query, prefix: Boolean): String? {
+        val suffix = if (prefix) "*" else ""
+        val terms = query.tokens.zip(query.looseTokens).mapNotNull { (strict, loose) ->
+            val variants = listOf(strict, loose).mapNotNull(::sanitizeFtsToken).distinct()
+            when (variants.size) {
+                0 -> null
+                1 -> "glossary:${variants[0]}$suffix"
+                else -> variants.joinToString(" OR ", prefix = "(", postfix = ")") { "glossary:$it$suffix" }
+            }
+        }.distinct()
+        return terms.takeIf { it.isNotEmpty() }?.joinToString(separator = " AND ")
     }
 
     private fun rankJapaneseQuery(candidates: List<String>, row: YomitanTermListRow): Int {
@@ -496,16 +469,6 @@ class LocalYomitanSource(
         }
     }
 
-    private fun buildGlossaryOnlyFtsQuery(rawQuery: String): String? {
-        val tokens = rawQuery.trim()
-            .split(FTS_TOKEN_SPLIT_REGEX)
-            .mapNotNull { token -> sanitizeFtsToken(token)?.let { "glossary:$it*" } }
-            .distinct()
-
-        if (tokens.isEmpty()) return null
-        return tokens.joinToString(separator = " AND ")
-    }
-
     private fun sanitizeFtsToken(raw: String): String? {
         val trimmed = raw.trim().trim('"', '\'', '`')
         if (trimmed.isBlank()) return null
@@ -515,23 +478,6 @@ class LocalYomitanSource(
             .trim()
 
         return cleaned.takeIf { it.isNotBlank() }
-    }
-
-    private fun containsRegexWhitespaceBoundedMatch(text: String, query: String): Boolean {
-        if (query.isEmpty()) return false
-        var index = text.indexOf(query)
-        while (index >= 0) {
-            val end = index + query.length
-            val startsAtBoundary = index == 0 || isDefaultRegexWhitespace(text[index - 1])
-            val endsAtBoundary = end == text.length || isDefaultRegexWhitespace(text[end])
-            if (startsAtBoundary && endsAtBoundary) return true
-            index = text.indexOf(query, startIndex = index + 1)
-        }
-        return false
-    }
-
-    private fun isDefaultRegexWhitespace(ch: Char): Boolean {
-        return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\u000B' || ch == '\u000C' || ch == '\r'
     }
 
     private fun isJapaneseCharacter(ch: Char): Boolean {

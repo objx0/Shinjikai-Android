@@ -140,7 +140,11 @@ class RawShinjikaiImporter(
                                         difficulty = normalizedWord.difficulty,
                                         note = normalizedWord.meanings.firstOrNull()?.note.orEmpty().trim(),
                                         source = sourceLabel,
-                                        detailsJson = gson.toJson(details)
+                                        detailsJson = gson.toJson(details),
+                                        jlpt = normalizedWord.jlpt,
+                                        searchText = ArabicSearch.buildSearchText(
+                                            normalizedWord.meanings.map { it.arabic.orEmpty() }
+                                        )
                                     )
                                 )
                                 importedCount += 1
@@ -212,7 +216,7 @@ class RawShinjikaiImporter(
             rowId = id,
             expression = expression,
             reading = reading,
-            glossary = glossary
+            glossary = searchText.ifBlank { glossary }
         )
     }
 

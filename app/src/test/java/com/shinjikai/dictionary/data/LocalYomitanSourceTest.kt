@@ -10,16 +10,16 @@ class LocalYomitanSourceTest {
     fun `arabic search normalizes query and ranks strongest matches first`() = runTest {
         val dao = FakeYomitanDao().apply {
             glossaryFtsResults = listOf(
-                term(id = 30, expression = "ثالث", glossary = "هذا الايمان راسخ"),
-                term(id = 10, expression = "أول", glossary = "إيمان"),
-                term(id = 20, expression = "ثان", glossary = "ايمان قوي")
+                arabicTerm(id = 30, expression = "ثالث", glossary = "هذا الايمان راسخ"),
+                arabicTerm(id = 10, expression = "أول", glossary = "إيمان"),
+                arabicTerm(id = 20, expression = "ثان", glossary = "ايمان قوي")
             )
         }
 
         val result = LocalYomitanSource(dao).searchWords(term = "إِيمان", page = 0).getOrThrow()
 
         assertEquals(listOf(10, 20, 30), result.items.map { it.id })
-        assertEquals("glossary:إِيمان*", dao.lastGlossaryFtsQuery)
+        assertEquals(listOf("glossary:ايمان", "glossary:ايمان*"), dao.glossaryFtsQueries)
         assertEquals(1, result.pageCount)
         assertEquals(3, result.totalCount)
     }
@@ -29,14 +29,50 @@ class LocalYomitanSourceTest {
         val query = "\u062D\u0628"
         val dao = FakeYomitanDao().apply {
             glossaryFtsResults = listOf(
-                term(id = 2, expression = "embedded", glossary = "\u0633${query}\u0631"),
-                term(id = 1, expression = "whole", glossary = "\u0641\u064A $query \u0643\u0628\u064A\u0631")
+                arabicTerm(id = 2, expression = "embedded", glossary = "\u0633${query}\u0631"),
+                arabicTerm(id = 1, expression = "whole", glossary = "\u0641\u064A $query \u0643\u0628\u064A\u0631")
             )
         }
 
         val result = LocalYomitanSource(dao).searchWords(term = query, page = 0).getOrThrow()
 
         assertEquals(listOf(1, 2), result.items.map { it.id })
+    }
+
+    @Test
+    fun `arabic search ranks exact first-meaning phrases and common words like the website`() = runTest {
+        // Real entries for "الشرطة": the website lists 警察 first; the app used to put 憲兵 first.
+        val dao = FakeYomitanDao().apply {
+            glossaryFtsResults = listOf(
+                indexed(76907, "憲兵", difficulty = 3, meanings = listOf("الشرطة العسكريّة، {مفرد} شرطي عسكري؛")),
+                indexed(76908, "憲兵隊", difficulty = 3, meanings = listOf("الشرطة العسكريّة، قوات الدَّرَك، الحرس الوطني؛")),
+                indexed(52719, "思想警察", difficulty = 0, meanings = listOf("الشرطة الفكرية (شرطة متخصصة في الجرائم الفكرية)؛")),
+                indexed(19699, "警察署", difficulty = 4, meanings = listOf("مَركز الشُرْطَة، مَخفَر الشرطة")),
+                indexed(47790, "警察当局", difficulty = 2, meanings = listOf("السلطات الأمنيّة، الشرطة؛")),
+                indexed(
+                    1957, "警察", difficulty = 5, jlpt = 4,
+                    meanings = listOf(
+                        "الشرطة، جهاز الشرطة، الأمن، جهاز الأمن",
+                        "({اختصار:no} {警察官:19695}) شُرْطِيّ، ضَابِط شُرْطَة، رَجُل شُرْطَة"
+                    )
+                ),
+                indexed(
+                    19695, "警察官", difficulty = 5,
+                    meanings = listOf("شُرْطِيّ، ضَابِط شُرْطَة، رَجُل شُرْطَة، (مؤ) شُرطِيّة، (ج) شُرطة، رِجَال الشُرْطَة")
+                ),
+                indexed(
+                    4726, "手入れ", difficulty = 5, jlpt = 2,
+                    meanings = listOf("إصلاح، صِيانة (|المنزل|)", "غارة مُفاجئة يقوم بها رجال الشرطة للقبض على مشتبه")
+                )
+            )
+        }
+
+        val result = LocalYomitanSource(dao).searchWords(term = "الشرطة", page = 0).getOrThrow()
+
+        assertEquals(
+            listOf(1957, 47790, 19695, 19699, 76907, 76908, 52719, 4726),
+            result.items.map { it.id }
+        )
     }
 
     @Test
@@ -74,10 +110,10 @@ class LocalYomitanSourceTest {
 
     private class FakeYomitanDao : YomitanDao {
         var ftsResults: List<YomitanTermListRow> = emptyList()
-        var glossaryFtsResults: List<YomitanTermListRow> = emptyList()
+        var glossaryFtsResults: List<YomitanArabicSearchRow> = emptyList()
         var directSearchResults: List<YomitanTermListRow> = emptyList()
         var lastFtsQuery: String? = null
-        var lastGlossaryFtsQuery: String? = null
+        val glossaryFtsQueries = mutableListOf<String>()
         val ftsQueries = mutableListOf<String>()
 
         override suspend fun search(term: String, prefix: String, limit: Int): List<YomitanTermListRow> = directSearchResults
@@ -91,13 +127,13 @@ class LocalYomitanSourceTest {
             return ftsResults.take(limit)
         }
 
-        override suspend fun searchGlossaryFts(matchQuery: String, limit: Int): List<YomitanTermListRow> {
-            lastGlossaryFtsQuery = matchQuery
+        override suspend fun searchGlossaryFts(matchQuery: String, limit: Int): List<YomitanArabicSearchRow> {
+            glossaryFtsQueries += matchQuery
             return glossaryFtsResults.take(limit)
         }
 
-        override suspend fun searchArabic(term: String, normalizedTerm: String, limit: Int): List<YomitanTermListRow> =
-            directSearchResults.take(limit)
+        override suspend fun searchArabic(term: String, normalizedTerm: String, limit: Int): List<YomitanArabicSearchRow> =
+            glossaryFtsResults.take(limit)
 
         override suspend fun countSearchMatches(term: String): Int = directSearchResults.size
 
@@ -179,6 +215,29 @@ class LocalYomitanSourceTest {
     }
 
     private companion object {
+        fun arabicTerm(id: Int, expression: String, glossary: String) = YomitanArabicSearchRow(
+            id = id,
+            expression = expression,
+            reading = expression,
+            glossary = glossary
+        )
+
+        fun indexed(
+            id: Int,
+            expression: String,
+            difficulty: Int,
+            jlpt: Int = 0,
+            meanings: List<String>
+        ) = YomitanArabicSearchRow(
+            id = id,
+            expression = expression,
+            reading = expression,
+            glossary = meanings.joinToString(" / "),
+            difficulty = difficulty,
+            jlpt = jlpt,
+            searchText = ArabicSearch.buildSearchText(meanings)
+        )
+
         fun term(
             id: Int,
             expression: String,

@@ -123,9 +123,9 @@ class LocalYomitanSourceDeinflectionTest {
             return ftsResults.take(limit)
         }
 
-        override suspend fun searchGlossaryFts(matchQuery: String, limit: Int): List<YomitanTermListRow> = emptyList()
+        override suspend fun searchGlossaryFts(matchQuery: String, limit: Int): List<YomitanArabicSearchRow> = emptyList()
 
-        override suspend fun searchArabic(term: String, normalizedTerm: String, limit: Int): List<YomitanTermListRow> = emptyList()
+        override suspend fun searchArabic(term: String, normalizedTerm: String, limit: Int): List<YomitanArabicSearchRow> = emptyList()
 
         override suspend fun countSearchMatches(term: String): Int = 0
 

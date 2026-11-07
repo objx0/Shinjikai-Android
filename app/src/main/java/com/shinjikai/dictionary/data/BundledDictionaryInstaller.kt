@@ -281,7 +281,9 @@ class BundledDictionaryInstaller(
 
     companion object {
         private const val TAG = "BundledDictionary"
-        private const val BUNDLED_DATA_SCHEMA = 2
+        // 3: adds jlpt + normalized Arabic search text used for Arabic result ranking.
+        // 4: website-matched Arabic search text format.
+        private const val BUNDLED_DATA_SCHEMA = 4
         const val BUNDLED_SOURCE_LABEL = "bundled-1selxo-shinjikai-jsonl"
 
         private const val MAX_FALLBACK_CHUNK_INDEX = 99

@@ -23,7 +23,10 @@ data class YomitanTermEntity(
     val note: String = "",
     val source: String = "yomitan",
     val enabled: Boolean = true,
-    val detailsJson: String? = null
+    val detailsJson: String? = null,
+    val jlpt: Int = 0,
+    /** Normalized Arabic phrases used for ranking; see [ArabicSearch.buildSearchText]. */
+    val searchText: String = ""
 )
 
 data class YomitanTermListRow(
@@ -34,6 +37,29 @@ data class YomitanTermListRow(
     val difficulty: Int = 0
 )
 
+/** Row used by Arabic search: carries the fields needed to rank results the way shinjikai.app does. */
+data class YomitanArabicSearchRow(
+    val id: Int,
+    val expression: String,
+    val reading: String,
+    val glossary: String,
+    val difficulty: Int = 0,
+    val jlpt: Int = 0,
+    val searchText: String = ""
+) {
+    fun toListRow(): YomitanTermListRow = YomitanTermListRow(
+        id = id,
+        expression = expression,
+        reading = reading,
+        glossary = glossary,
+        difficulty = difficulty
+    )
+}
+
+/**
+ * The FTS `glossary` column holds the normalized Arabic search text when available
+ * (falls back to the raw glossary), so diacritics and letter variants never block a match.
+ */
 @Fts4
 @Entity(tableName = "yomitan_terms_fts")
 data class YomitanTermFtsEntity(

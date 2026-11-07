@@ -70,7 +70,7 @@ interface YomitanDao {
 
     @Query(
         """
-        SELECT t.id, t.expression, t.reading, t.glossary, t.difficulty
+        SELECT t.id, t.expression, t.reading, t.glossary, t.difficulty, t.jlpt, t.searchText
         FROM yomitan_terms t
         JOIN yomitan_terms_fts ON t.id = yomitan_terms_fts.rowid
         WHERE yomitan_terms_fts MATCH :matchQuery
@@ -79,16 +79,16 @@ interface YomitanDao {
         LIMIT :limit
         """
     )
-    suspend fun searchGlossaryFts(matchQuery: String, limit: Int = 2500): List<YomitanTermListRow>
+    suspend fun searchGlossaryFts(matchQuery: String, limit: Int = 2500): List<YomitanArabicSearchRow>
 
     @Query(
         """
-        SELECT id, expression, reading, glossary, difficulty FROM yomitan_terms
+        SELECT id, expression, reading, glossary, difficulty, jlpt, searchText FROM yomitan_terms
         WHERE enabled = 1
             AND (expression <> '' OR reading <> '')
             AND (
                 glossary LIKE '%' || :term || '%'
-                OR glossary LIKE '%' || :normalizedTerm || '%'
+                OR searchText LIKE '%' || :normalizedTerm || '%'
             )
         ORDER BY id ASC
         LIMIT :limit
@@ -98,7 +98,7 @@ interface YomitanDao {
         term: String,
         normalizedTerm: String,
         limit: Int = 2500
-    ): List<YomitanTermListRow>
+    ): List<YomitanArabicSearchRow>
 
     @Query(
         """

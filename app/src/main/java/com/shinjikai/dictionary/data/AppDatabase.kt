@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         YomitanTermCategoryEntity::class
     ],
     // Keep this >= the highest version that has ever shipped, otherwise existing installs may crash on downgrade.
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -252,6 +252,13 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Adds jlpt + searchText; the bundled dictionary is re-imported to populate them.
+                ensureCurrentDictionarySchema(db)
+            }
+        }
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
@@ -274,12 +281,17 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRATION_9_10,
                         MIGRATION_10_11,
                         MIGRATION_11_12,
-                        MIGRATION_12_13
+                        MIGRATION_12_13,
+                        MIGRATION_13_14
                     )
                     .build()
                     .also { INSTANCE = it }
             }
         }
+
+        /** What the FTS glossary column indexes: normalized search text, or the raw glossary for legacy rows. */
+        private const val FTS_GLOSSARY_SOURCE =
+            "(CASE WHEN terms.searchText <> '' THEN terms.searchText ELSE terms.glossary END)"
 
         fun repairOfflineDictionarySchema(db: SupportSQLiteDatabase) {
             ensureCurrentDictionarySchema(db)
@@ -328,6 +340,12 @@ abstract class AppDatabase : RoomDatabase() {
             if ("enabled" !in termColumns) {
                 db.execSQL("ALTER TABLE yomitan_terms ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1")
             }
+            if ("jlpt" !in termColumns) {
+                db.execSQL("ALTER TABLE yomitan_terms ADD COLUMN jlpt INTEGER NOT NULL DEFAULT 0")
+            }
+            if ("searchText" !in termColumns) {
+                db.execSQL("ALTER TABLE yomitan_terms ADD COLUMN searchText TEXT NOT NULL DEFAULT ''")
+            }
 
             db.execSQL("CREATE INDEX IF NOT EXISTS index_yomitan_terms_expression ON yomitan_terms(expression)")
             db.execSQL("CREATE INDEX IF NOT EXISTS index_yomitan_terms_reading ON yomitan_terms(reading)")
@@ -359,7 +377,7 @@ abstract class AppDatabase : RoomDatabase() {
                     WHERE fts.rowid IS NULL
                         OR fts.expression IS NOT terms.expression
                         OR fts.reading IS NOT terms.reading
-                        OR fts.glossary IS NOT terms.glossary
+                        OR fts.glossary IS NOT $FTS_GLOSSARY_SOURCE
                     LIMIT 1
                     """.trimIndent()
                 ).use { cursor -> cursor.moveToFirst() }
@@ -387,8 +405,8 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL(
                     """
                     INSERT INTO yomitan_terms_fts(rowid, expression, reading, glossary)
-                    SELECT id, expression, reading, glossary
-                    FROM yomitan_terms
+                    SELECT id, expression, reading, $FTS_GLOSSARY_SOURCE
+                    FROM yomitan_terms AS terms
                     """.trimIndent()
                 )
                 if (ownsTransaction) db.setTransactionSuccessful()
