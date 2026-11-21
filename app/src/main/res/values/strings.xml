@@ -18,8 +18,8 @@
     <string name="detail_japanese_definition">الشرح الياباني</string>
     <string name="detail_homophones_title">كلمات متجانسة لفظاً</string>
     <string name="detail_kanji_title">معلومات الكانجي</string>
-    <string name="detail_on_yomi">أون: %1$s</string>
-    <string name="detail_kun_yomi">كون: %1$s</string>
+    <string name="detail_on_yomi_label">قراءة أون</string>
+    <string name="detail_kun_yomi_label">قراءة كون</string>
     <string name="detail_copy_example">نسخ المثال</string>
     <string name="detail_note_prefix">ملاحظة:</string>
     <string name="detail_no_reading">لا توجد قراءة</string>
@@ -41,7 +41,7 @@
     <string name="commonness_level_1">نادر</string>
     <string name="commonness_a11y">الشيوع: %1$s، %2$d من %3$d</string>
 
-    <string name="search_hint">اكتب باليابانية أو العربية أو بالرومـاجي</string>
+    <string name="search_hint">اكتب باليابانية أو العربية أو بالروماجي</string>
     <string name="search_recent_title">عمليات البحث الأخيرة</string>
     <string name="search_clear_history">مسح سجل البحث</string>
     <string name="search_remove_history">حذف هذا البحث</string>
@@ -77,7 +77,6 @@
     <string name="action_cancel">إلغاء</string>
 
     <string name="settings_title" comment="Title for the settings screen">الإعدادات</string>
-    <string name="settings_appearance_title">المظهر</string>
     <string name="settings_theme_system">النظام</string>
     <string name="settings_theme_light">فاتح</string>
     <string name="settings_theme_dark">داكن</string>
@@ -85,7 +84,6 @@
     <string name="intro_action_back">السابق</string>
     <string name="intro_step">%1$d من %2$d</string>
     <string name="intro_preview_meaning">المعنى</string>
-    <string name="intro_preview_offline_title">يعمل بدون إنترنت</string>
     <string name="intro_preview_offline_body">القاموس مضمّن داخل التطبيق</string>
     <string name="intro_preview_entries">مدخل</string>
     <string name="intro_preview_yomitan">أضف قواميس Yomitan</string>
@@ -103,7 +101,14 @@
     <string name="history_clear_all_chip">مسح الكل</string>
     <string name="detail_meta_commonness">الشيوع</string>
     <string name="detail_meta_level">المستوى</string>
-    <string name="detail_examples_count">%1$d أمثلة</string>
+    <plurals name="detail_examples_count">
+        <item quantity="zero">لا أمثلة</item>
+        <item quantity="one">مثال واحد</item>
+        <item quantity="two">مثالان</item>
+        <item quantity="few">%1$d أمثلة</item>
+        <item quantity="many">%1$d مثالًا</item>
+        <item quantity="other">%1$d مثال</item>
+    </plurals>
     <string name="browse_kanji" translatable="false">辞書</string>
     <string name="browse_random_hint">افتح مدخلاً بالصدفة وتعلّم شيئاً جديداً</string>
     <string name="browse_jump_title">انتقل حسب القراءة</string>
@@ -123,7 +128,6 @@
     <string name="settings_anki_install_button">تثبيت AnkiDroid</string>
     <string name="settings_anki_refresh">تحديث قائمة الرزم</string>
     <string name="settings_anki_deck_count">%1$d رزمة</string>
-    <string name="settings_overview_title">نظرة عامة</string>
     <string name="settings_entries_offline_label">مدخل متاح دون اتصال</string>
     <string name="settings_active_dictionaries">%1$d من %2$d مفعّل</string>
     <string name="settings_builtin_tag">مدمج</string>
@@ -138,16 +142,19 @@
     <string name="search_shuffle_words_a11y">اعرض كلمات أخرى</string>
     <string name="search_browse_title">تصفّح القاموس</string>
     <string name="search_results_title">النتائج</string>
+    <plurals name="search_results_count">
+        <item quantity="zero">لا نتائج</item>
+        <item quantity="one">نتيجة واحدة</item>
+        <item quantity="two">نتيجتان</item>
+        <item quantity="few">%1$d نتائج</item>
+        <item quantity="many">%1$d نتيجة</item>
+        <item quantity="other">%1$d نتيجة</item>
+    </plurals>
     <string name="settings_title_kanji" translatable="false">設定</string>
     <string name="app_name_kanji" translatable="false">深辞海</string>
-    <string name="settings_dynamic_color_description">استخدم ألوان خلفية الجهاز</string>
-    <string name="settings_data_title">البيانات</string>
     <string name="settings_about_credit_label">المعاني والأمثلة والصور من</string>
-    <string name="settings_about_unofficial">هذا التطبيق غير تابع لموقع قاموس شِنجِكاي، ويستخدم بياناته المنشورة بترخيص</string>
-    <string name="settings_about_license_cc_by" translatable="false">CC BY 4.0</string>
-    <string name="settings_about_license_mit" translatable="false">MIT</string>
-    <string name="settings_about_open_source">التطبيق مفتوح المصدر</string>
-    <string name="settings_about_repo_label" translatable="false">github.com/objx0/Shinjikai-Android</string>
+    <string name="settings_about_open_source">ساهم في تطوير التطبيق</string>
+    <string name="settings_about_open_source_label">مفتوح المصدر على GitHub</string>
     <string name="settings_about_made_with">صُنع بـ</string>
     <string name="settings_about_made_for">لمتعلّمي اليابانية العرب</string>
     <string name="settings_dictionaries_tile_title">القواميس</string>
@@ -175,6 +182,7 @@
     <string name="offline_import_invalid_zip">ملف القاموس الذي تم تنزيله غير صالح.</string>
     <string name="offline_dictionary_indexing_title">جاري تجهيز القاموس</string>
     <string name="offline_dictionary_indexing_message">يتم فهرسة البيانات المدمجة داخل التطبيق. بعد اكتمال الفهرسة سيعمل البحث بدون إنترنت.</string>
+    <string name="offline_dictionary_indexed_caption">كلمة جاهزة للبحث بدون إنترنت</string>
     <string name="offline_dictionary_missing_title">القاموس غير جاهز</string>
     <string name="offline_dictionary_missing_message">لم يتم العثور على بيانات مفهرسة بعد. أعد محاولة تجهيز القاموس المدمج.</string>
     <string name="offline_dictionary_retry">إعادة تجهيز القاموس</string>
@@ -193,6 +201,12 @@
     <string name="browse_count">%1$d مدخل</string>
     <string name="browse_empty">لم يتم تجهيز القاموس بعد.</string>
     <string name="browse_random">مدخل عشوائي</string>
+    <string name="shuffle_title">كلمات عشوائية</string>
+    <string name="shuffle_next">كلمة أخرى</string>
+    <string name="shuffle_undo">الكلمة السابقة</string>
+    <string name="shuffle_open_full">عرض المدخل كاملاً</string>
+    <string name="shuffle_hint">اسحب البطاقة لكلمة أخرى</string>
+    <string name="shuffle_empty">لا توجد كلمات متاحة. ثبّت القاموس أولاً.</string>
     <string name="settings_anki_exporter_title">مصدّر أنكي</string>
     <string name="settings_anki_exporter_description">&#x0627;&#x062E;&#x062A;&#x0631; &#x0627;&#x0644;&#x0631;&#x0632;&#x0645;&#x0629; &#x0627;&#x0644;&#x062A;&#x064A; &#x0633;&#x062A;&#x064F;&#x0635;&#x062F;&#x0651;&#x0631; &#x0625;&#x0644;&#x064A;&#x0647;&#x0627; &#x0627;&#x0644;&#x0643;&#x0644;&#x0645;&#x0627;&#x062A;.</string>
     <string name="settings_anki_selected_deck">&#x0627;&#x0644;&#x0631;&#x0632;&#x0645;&#x0629; &#x0627;&#x0644;&#x0645;&#x062D;&#x062F;&#x062F;&#x0629;</string>

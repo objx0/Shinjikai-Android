@@ -12,6 +12,16 @@ import kotlinx.coroutines.withContext
 
 private val RAW_SHINJIKAI_WHITESPACE_REGEX = Regex("""\s+""")
 
+private const val PREVIEW_REPORT_INTERVAL = 61
+private const val PREVIEW_MAX_EXPRESSION_LENGTH = 5
+private const val PREVIEW_MAX_MEANING_LENGTH = 22
+
+data class ImportPreviewEntry(
+    val expression: String,
+    val reading: String,
+    val meaning: String
+)
+
 internal data class JsonLineInput(
     val label: String,
     val openStream: () -> InputStream
@@ -55,7 +65,8 @@ class RawShinjikaiImporter(
     internal suspend fun importFromJsonLineStreams(
         sources: List<JsonLineInput>,
         sourceLabel: String = "raw-shinjikai-jsonl",
-        offlineImageRoot: String? = null
+        offlineImageRoot: String? = null,
+        onEntryImported: ((importedCount: Int, preview: ImportPreviewEntry?) -> Unit)? = null
     ): Result<Int> {
         return runCatching {
             withContext(Dispatchers.IO) {
@@ -148,6 +159,29 @@ class RawShinjikaiImporter(
                                     )
                                 )
                                 importedCount += 1
+
+                                if (onEntryImported != null && importedCount % PREVIEW_REPORT_INTERVAL == 0) {
+                                    val meaning = normalizedWord.meanings
+                                        .map { it.arabic.orEmpty() }
+                                        .firstOrNull { it.isNotBlank() }
+                                        ?.split('،', ',', '؛', ';')
+                                        ?.firstOrNull()
+                                        ?.trim()
+                                        .orEmpty()
+                                    val preview = if (
+                                        expression.length in 1..PREVIEW_MAX_EXPRESSION_LENGTH &&
+                                        meaning.length in 1..PREVIEW_MAX_MEANING_LENGTH
+                                    ) {
+                                        ImportPreviewEntry(
+                                            expression = expression,
+                                            reading = if (reading != expression) reading else "",
+                                            meaning = meaning
+                                        )
+                                    } else {
+                                        null
+                                    }
+                                    onEntryImported(importedCount, preview)
+                                }
 
                                 if (buffer.size >= 500) {
                                     flush(buffer, categoryBuffer)

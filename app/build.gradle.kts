@@ -20,8 +20,8 @@ android {
         applicationId = "com.shinjikai.dictionary"
         minSdk = 24
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.20"
+        versionCode = 16
+        versionName = "1.21"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

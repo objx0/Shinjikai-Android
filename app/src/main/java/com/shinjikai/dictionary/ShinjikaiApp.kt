@@ -278,6 +278,13 @@ fun ShinjikaiApp(
                                     focusManager.clearFocus()
                                     viewModel.prefetchDetails(it.id)
                                     navController.navigate(buildDetailRoute(it.id))
+                                },
+                                onOpenShuffle = {
+                                    focusManager.clearFocus()
+                                    viewModel.startShuffleSession()
+                                    navController.navigate(AppRoute.Shuffle.route) {
+                                        launchSingleTop = true
+                                    }
                                 }
                             )
                         }
@@ -359,6 +366,35 @@ fun ShinjikaiApp(
                             )
                         }
                         composable(
+                            AppRoute.Shuffle.route,
+                            enterTransition = { detailEnterTransition() },
+                            exitTransition = { detailExitTransition() },
+                            popEnterTransition = { detailPopEnterTransition() },
+                            popExitTransition = { detailPopExitTransition() }
+                        ) {
+                            ShuffleScreen(
+                                viewModel = viewModel,
+                                onGoBack = { navController.popBackStack() },
+                                onOpenFullEntry = { item ->
+                                    viewModel.prefetchDetails(item.id)
+                                    navController.navigate(buildDetailRoute(item.id))
+                                },
+                                onSpeak = { text ->
+                                    japaneseTextToSpeech.speak(
+                                        text = text,
+                                        utteranceId = "shuffle-word-$text",
+                                        onUnavailable = {
+                                            Toast.makeText(
+                                                context,
+                                                context.getString(R.string.detail_japanese_audio_unavailable),
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                        composable(
                             AppRoute.Category.route,
                             enterTransition = { detailEnterTransition() },
                             exitTransition = { detailExitTransition() },
@@ -384,7 +420,7 @@ fun ShinjikaiApp(
                             popExitTransition = { detailPopExitTransition() }
                         ) {
                             AnkiExporterSettingsScreenContent(
-                                selectedDeckName = viewModel.settingsUiState.settings.selectedAnkiDeckName,
+                                selectedDeckName = settings.selectedAnkiDeckName,
                                 onSelectDeck = viewModel::setSelectedAnkiDeckName,
                                 onGoBack = { navController.popBackStack() }
                             )
@@ -480,20 +516,28 @@ fun ShinjikaiApp(
                             currentScreen = currentScreen ?: Screen.Search,
                             onSearchClick = handleSearchTabClick,
                             onBrowseClick = {
-                                focusManager.clearFocus()
-                                navController.navigateToPrimary(AppRoute.Browse)
+                                if (currentScreen != Screen.Browse) {
+                                    focusManager.clearFocus()
+                                    navController.navigateToPrimary(AppRoute.Browse)
+                                }
                             },
                             onHistoryClick = {
-                                focusManager.clearFocus()
-                                navController.navigateToPrimary(AppRoute.History)
+                                if (currentScreen != Screen.History) {
+                                    focusManager.clearFocus()
+                                    navController.navigateToPrimary(AppRoute.History)
+                                }
                             },
                             onBookmarksClick = {
-                                focusManager.clearFocus()
-                                navController.navigateToPrimary(AppRoute.Bookmarks)
+                                if (currentScreen != Screen.Bookmarks) {
+                                    focusManager.clearFocus()
+                                    navController.navigateToPrimary(AppRoute.Bookmarks)
+                                }
                             },
                             onSettingsClick = {
-                                focusManager.clearFocus()
-                                navController.navigateToPrimary(AppRoute.Settings)
+                                if (currentScreen != Screen.Settings) {
+                                    focusManager.clearFocus()
+                                    navController.navigateToPrimary(AppRoute.Settings)
+                                }
                             }
                         )
                     }
@@ -986,7 +1030,7 @@ private fun IntroOfflinePreview(entryCount: Int) {
                     )
                 }
                 Text(
-                    text = stringResource(R.string.intro_preview_offline_title),
+                    text = stringResource(R.string.intro_page_3_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = colors.onSurface

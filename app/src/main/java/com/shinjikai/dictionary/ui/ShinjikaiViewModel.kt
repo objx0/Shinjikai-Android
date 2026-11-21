@@ -1,5 +1,6 @@
 package com.shinjikai.dictionary.ui
 
+import com.shinjikai.dictionary.data.toBrowseSearchItem
 import com.shinjikai.dictionary.data.buildOfflineSearchPreview
 import com.shinjikai.dictionary.data.YomitanTermListRow
 import java.util.TimeZone
@@ -10,6 +11,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -27,6 +29,7 @@ import com.shinjikai.dictionary.data.BookmarkItem
 import com.shinjikai.dictionary.data.BookmarkRepository
 import com.shinjikai.dictionary.data.BrowsePagingSource
 import com.shinjikai.dictionary.data.BundledDictionaryInstaller
+import com.shinjikai.dictionary.data.ImportPreviewEntry
 import com.shinjikai.dictionary.data.DictionarySource
 import com.shinjikai.dictionary.data.InstalledDictionaryRecord
 import com.shinjikai.dictionary.data.InstalledDictionaryStore
@@ -53,7 +56,6 @@ import com.shinjikai.dictionary.data.findOfflineImportPayload
 import com.shinjikai.dictionary.data.replaceStagedDirectoryAtomically
 import com.shinjikai.dictionary.data.stageDirectoryCopy
 import com.shinjikai.dictionary.data.stageDirectoryMergedCopy
-import com.shinjikai.dictionary.data.toBrowseSearchItem
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Deferred
@@ -94,6 +96,9 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
     val settings: StateFlow<AppSettings> = settingsStore.settingsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, settingsStore.readCached())
 
+    // Compose-observable mirror of [settings]; StateFlow.value reads are not tracked by Compose.
+    private var observedSettings by mutableStateOf(settings.value)
+
     private var dictionarySource: DictionarySource = createDictionarySource()
         set(value) {
             field = value
@@ -106,8 +111,14 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
 
     private var repository: ShinjikaiRepository = ShinjikaiRepository(source = dictionarySource)
 
+    private val _searchTotalCount = MutableStateFlow<Int?>(null)
+
+    /** Total matches for the current search query (all pages), or null until the first page loads. */
+    val searchTotalCount: StateFlow<Int?> = _searchTotalCount
+
     val searchResults: Flow<PagingData<SearchItem>> = combine(searchSpec, searchRefreshNonce) { spec, _ -> spec }
         .flatMapLatest { spec ->
+            _searchTotalCount.value = null
             if (spec == null || spec.mode == ResultMode.None) {
                 flowOf(PagingData.empty())
             } else {
@@ -117,7 +128,11 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
                         prefetchDistance = 15,
                         enablePlaceholders = false
                     ),
-                    pagingSourceFactory = { SearchPagingSource(repository = repository, spec = spec) }
+                    pagingSourceFactory = {
+                        SearchPagingSource(repository = repository, spec = spec) { total ->
+                            if (searchSpec.value == spec) _searchTotalCount.value = total
+                        }
+                    }
                 ).flow
             }
         }
@@ -224,6 +239,8 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
     var offlineImportError by mutableStateOf(false)
     var offlineImportProgress by mutableStateOf(0f)
     var offlineImportPhase by mutableStateOf<String?>(null)
+    var offlineIndexedCount by mutableStateOf(0)
+    var offlineImportPreview by mutableStateOf<ImportPreviewEntry?>(null)
     var offlineImportStatus by mutableStateOf<String?>(null)
     var offlineLastImportEpochMs by mutableStateOf<Long?>(null)
     var offlineTermCount by mutableStateOf(0)
@@ -245,6 +262,9 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
             offlineImportError = offlineImportError,
             offlineImportStatus = offlineImportStatus,
             offlineImportPhase = offlineImportPhase,
+            offlineImportProgress = offlineImportProgress,
+            offlineIndexedCount = offlineIndexedCount,
+            offlineImportPreview = offlineImportPreview,
             offlineTermCount = offlineTermCount,
             isOfflineDictionaryStateLoaded = isOfflineDictionaryStateLoaded
         )
@@ -269,14 +289,14 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
             isEditMode = isBookmarkEditMode,
             selectedIds = selectedBookmarkIds,
             pendingDeletionIds = pendingBookmarkDeletionIds,
-            useOfflineMode = settings.value.useOfflineMode,
+            useOfflineMode = observedSettings.useOfflineMode,
             activeCategoryId = activeCategoryId
         )
 
     val settingsUiState: SettingsUiState
         get() = SettingsUiState(
-            settings = settings.value,
-            showIntroduction = !settings.value.hasSeenIntroduction && !introDismissedThisSession,
+            settings = observedSettings,
+            showIntroduction = !observedSettings.hasSeenIntroduction && !introDismissedThisSession,
             isImportingOfflineData = isImportingOfflineData,
             offlineImportError = offlineImportError,
             offlineImportProgress = offlineImportProgress,
@@ -309,6 +329,7 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
         )
 
     init {
+        viewModelScope.launch { settings.collect { observedSettings = it } }
         installBundledDictionaryIfNeeded()
         viewModelScope.launch { settingsStore.ensureOfflineMode() }
         refreshOfflineTermCount(waitForBundledInstall = true)
@@ -670,14 +691,116 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { settingsStore.setUseDynamicColor(enabled) }
     }
 
-    fun openRandomDictionaryEntry(onEntry: (SearchItem) -> Unit) {
-        viewModelScope.launch {
-            val item = withContext(Dispatchers.IO) {
-                database.yomitanDao()
-                    .loadRandomTerm()
-                    ?.toBrowseSearchItem()
+    // Shuffle session: a stack of random word cards opened from the browse tile.
+    // Cards carry the browse-row data (headword, reading, summary, commonness) so the next card
+    // shows instantly; history lets the user undo back, and the queue is filled ahead of time.
+    private val shuffleHistory = mutableStateListOf<SearchItem>()
+    private val shuffleQueue = mutableStateListOf<SearchItem>()
+    private var shuffleRefillJob: Job? = null
+
+    var shuffleIndex by mutableIntStateOf(-1)
+        private set
+
+    val shuffleCurrent: SearchItem?
+        get() = shuffleHistory.getOrNull(shuffleIndex)
+
+    /** The cards waiting behind the current one, nearest first. */
+    val shuffleUpcoming: List<SearchItem>
+        get() {
+            val ahead = shuffleHistory.drop(shuffleIndex + 1) + shuffleQueue
+            return ahead.take(SHUFFLE_VISIBLE_BEHIND)
+        }
+
+    val canShufflePrevious: Boolean
+        get() = shuffleIndex > 0
+
+    private var isShuffleFetching by mutableStateOf(false)
+
+    /** True while the very first card (or a card the queue couldn't supply yet) is loading. */
+    val isShuffleLoading: Boolean
+        get() = isShuffleFetching && (shuffleCurrent == null || shuffleIndex == shuffleHistory.lastIndex && shuffleQueue.isEmpty())
+
+    fun isBookmarked(id: Int): Boolean = id in bookmarkedIds
+
+    fun startShuffleSession() {
+        shuffleRefillJob?.cancel()
+        shuffleQueue.clear()
+        shuffleHistory.clear()
+        shuffleIndex = -1
+        refillShuffleQueue(advanceWhenReady = true)
+    }
+
+    /** Re-entry safety: e.g. after process death the screen is restored without a session. */
+    fun ensureShuffleSession() {
+        if (shuffleHistory.isEmpty() && shuffleRefillJob?.isActive != true) {
+            startShuffleSession()
+        }
+    }
+
+    fun shuffleNext() {
+        if (shuffleIndex < shuffleHistory.lastIndex) {
+            shuffleIndex += 1
+        } else {
+            val next = shuffleQueue.removeFirstOrNull()
+            if (next == null) {
+                refillShuffleQueue(advanceWhenReady = true)
+                return
             }
-            item?.let(onEntry)
+            shuffleHistory.add(next)
+            if (shuffleHistory.size > SHUFFLE_HISTORY_LIMIT) {
+                shuffleHistory.removeAt(0)
+            }
+            shuffleIndex = shuffleHistory.lastIndex
+        }
+        if (shuffleQueue.size < SHUFFLE_QUEUE_LOW_WATER) {
+            refillShuffleQueue(advanceWhenReady = false)
+        }
+    }
+
+    fun shufflePrevious() {
+        if (canShufflePrevious) shuffleIndex -= 1
+    }
+
+    private fun refillShuffleQueue(advanceWhenReady: Boolean) {
+        if (shuffleRefillJob?.isActive == true && !advanceWhenReady) return
+        shuffleRefillJob?.cancel()
+        shuffleRefillJob = viewModelScope.launch {
+            isShuffleFetching = true
+            try {
+                fillShuffleQueue(advanceWhenReady)
+            } finally {
+                // A cancelled job must not clear the flag of the job that replaced it.
+                if (shuffleRefillJob === coroutineContext[Job]) isShuffleFetching = false
+            }
+        }
+    }
+
+    private suspend fun fillShuffleQueue(advanceWhenReady: Boolean) {
+        val exclude = (shuffleHistory.asSequence() + shuffleQueue.asSequence()).map { it.id }.toSet()
+        val items = loadUniqueRandomTerms(count = SHUFFLE_QUEUE_SIZE - shuffleQueue.size, exclude = exclude)
+        val known = (shuffleHistory.asSequence() + shuffleQueue.asSequence()).map { it.id }.toSet()
+        shuffleQueue.addAll(items.filterNot { it.id in known })
+        if (advanceWhenReady) {
+            val next = shuffleQueue.removeFirstOrNull() ?: return
+            shuffleHistory.add(next)
+            shuffleIndex = shuffleHistory.lastIndex
+        }
+    }
+
+    private suspend fun loadUniqueRandomTerms(count: Int, exclude: Set<Int>): List<SearchItem> {
+        if (count <= 0) return emptyList()
+        return withContext(Dispatchers.IO) {
+            val dao = database.yomitanDao()
+            val picked = LinkedHashMap<Int, SearchItem>()
+            var attempts = 0
+            while (picked.size < count && attempts < count * 4) {
+                attempts++
+                val row = dao.loadRandomTerm() ?: break
+                if (row.id !in exclude && row.id !in picked) {
+                    picked[row.id] = row.toBrowseSearchItem()
+                }
+            }
+            picked.values.toList()
         }
     }
 
@@ -692,45 +815,50 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
             var workStarted = false
 
             Log.i(TAG, "Starting bundled dictionary install. force=$force")
-            val result = bundledDictionaryInstaller.installIfNeeded(force = force) { phase, progress ->
-                if (!workStarted) {
-                    withContext(Dispatchers.Main.immediate) {
-                        workStarted = true
-                        isImportingOfflineData = true
-                        offlineImportError = false
-                        offlineImportStatus = null
-                        offlineImportProgress = 0f
+            val result = bundledDictionaryInstaller.installIfNeeded(
+                force = force,
+                onProgress = { phase, progress ->
+                    if (!workStarted) {
+                        withContext(Dispatchers.Main.immediate) {
+                            workStarted = true
+                            isImportingOfflineData = true
+                            offlineImportError = false
+                            offlineImportStatus = null
+                            offlineImportProgress = 0f
+                            offlineIndexedCount = 0
+                            offlineImportPreview = null
+                        }
+                    }
+                    updateOfflineImportProgress(phase, progress)
+                },
+                onIndexing = { count, progress, preview ->
+                    viewModelScope.launch(Dispatchers.Main) {
+                        if (!isImportingOfflineData) return@launch
+                        offlineIndexedCount = maxOf(offlineIndexedCount, count)
+                        offlineImportProgress = maxOf(offlineImportProgress, progress.coerceIn(0f, 1f))
+                        if (preview != null) offlineImportPreview = preview
                     }
                 }
-                updateOfflineImportProgress(phase, progress)
-            }
+            )
 
             isOfflineDataOperationActive = false
             if (workStarted) {
                 isImportingOfflineData = false
                 offlineImportPhase = null
+                offlineIndexedCount = 0
+                offlineImportPreview = null
             }
             result.onSuccess { installResult ->
                 offlineImportError = false
                 if (workStarted) offlineImportProgress = 1f
                 if (installResult.available && installResult.dictionaryImported) {
-                    offlineImportStatus = if (installResult.imagesInstalled) {
-                        context.getString(
-                            R.string.offline_import_success_with_images,
-                            installResult.importedCount
-                        )
-                    } else {
-                        context.getString(
-                            R.string.offline_import_success,
-                            installResult.importedCount
-                        )
-                    }
+                    offlineImportStatus = null
                     categoryNameById = emptyMap()
                     refreshOfflineTermCount()
                     refreshOfflinePreview()
                     dictionarySource = createDictionarySource()
                 } else if (installResult.available && installResult.imagesInstalled) {
-                    offlineImportStatus = context.getString(R.string.offline_images_install_success)
+                    offlineImportStatus = null
                 } else {
                     refreshOfflineTermCount()
                     refreshOfflinePreview()
@@ -873,15 +1001,10 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
             offlineImportPhase = null
             result.onSuccess { importResult ->
                 offlineImportError = false
-                offlineImportStatus = when {
-                    importResult.importedCount > 0 && importResult.installedImages ->
-                        context.getString(R.string.offline_import_success_with_images, importResult.importedCount)
-                    importResult.importedCount > 0 ->
-                        context.getString(R.string.offline_import_success, importResult.importedCount)
-                    importResult.installedImages ->
-                        context.getString(R.string.offline_images_install_success)
-                    else ->
-                        context.getString(R.string.offline_import_failure)
+                offlineImportStatus = if (importResult.importedCount > 0 || importResult.installedImages) {
+                    null
+                } else {
+                    context.getString(R.string.offline_import_failure)
                 }
                 categoryNameById = emptyMap()
                 refreshOfflineTermCount()
@@ -1197,6 +1320,10 @@ class ShinjikaiViewModel(app: Application) : AndroidViewModel(app) {
         private const val OFFLINE_CATEGORIES_META_KEY = "categories_json"
         private const val FEATURED_MIN_DIFFICULTY = 4
         private const val LANDING_PICK_COUNT = 3
+        private const val SHUFFLE_QUEUE_SIZE = 12
+        private const val SHUFFLE_QUEUE_LOW_WATER = 4
+        private const val SHUFFLE_HISTORY_LIMIT = 300
+        private const val SHUFFLE_VISIBLE_BEHIND = 2
         private const val DAY_MILLIS = 86_400_000L
         // Large odd stride so consecutive days land far apart in the term list.
         private const val WORD_OF_DAY_STRIDE = 2_654_435_761L

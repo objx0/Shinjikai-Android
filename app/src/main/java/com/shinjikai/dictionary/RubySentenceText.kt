@@ -5,6 +5,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.sp
@@ -16,7 +17,9 @@ internal fun RubyJapaneseText(
     kana: String,
     links: List<SentenceWordLink>,
     onWordClick: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    highlightWordId: Int? = null,
+    highlightTerms: List<String> = emptyList()
 ) {
     val segments = remember(text, kana, links) {
         buildRubySegments(text = text, kana = kana, links = links)
@@ -31,9 +34,11 @@ internal fun RubyJapaneseText(
         return
     }
 
-    val linkedColor = MaterialTheme.colorScheme.primary
-    val unlinkedBaseColor = MaterialTheme.colorScheme.onSurface
-    val unlinkedRubyColor = MaterialTheme.colorScheme.onSurfaceVariant
+    val colors = MaterialTheme.colorScheme
+    val highlightMode = highlightWordId != null || highlightTerms.isNotEmpty()
+    val highlightRanges = remember(text, links, highlightWordId, highlightTerms) {
+        if (highlightMode) findHeadwordRanges(text, links, highlightWordId, highlightTerms) else emptyList()
+    }
     val baseStyle = MaterialTheme.typography.titleMedium.copy(
         textDirection = TextDirection.ContentOrLtr,
         lineHeight = 25.sp
@@ -43,13 +48,16 @@ internal fun RubyJapaneseText(
         lineHeight = 10.sp,
         textDirection = TextDirection.ContentOrLtr
     )
-    val layoutSegments = remember(segments) {
+    val layoutSegments = remember(segments, highlightRanges) {
         segments.map { segment ->
             RubyTextSegment(
                 base = segment.base,
                 ruby = segment.ruby,
                 wordId = segment.wordId,
-                wrapGroupId = segment.wrapGroupId
+                wrapGroupId = segment.wrapGroupId,
+                highlighted = highlightRanges.any { range ->
+                    segment.start <= range.last && segment.end > range.first
+                }
             )
         }
     }
@@ -58,14 +66,49 @@ internal fun RubyJapaneseText(
         baseStyle = baseStyle,
         rubyStyle = rubyStyle,
         baseColor = { segment ->
-            if (segment.wordId != null) linkedColor else unlinkedBaseColor
+            when {
+                segment.highlighted -> colors.onSurface
+                highlightMode -> colors.onSurface
+                segment.wordId != null -> colors.primary
+                else -> colors.onSurface
+            }
         },
         rubyColor = { segment ->
-            if (segment.wordId != null) linkedColor else unlinkedRubyColor
+            when {
+                segment.highlighted -> colors.primary
+                highlightMode -> colors.onSurfaceVariant
+                segment.wordId != null -> colors.primary
+                else -> colors.onSurfaceVariant
+            }
         },
+        highlightColor = if (highlightMode) colors.primary.copy(alpha = HEADWORD_MARKER_ALPHA) else Color.Unspecified,
         onWordClick = onWordClick,
         modifier = modifier
     )
+}
+
+private fun findHeadwordRanges(
+    text: String,
+    links: List<SentenceWordLink>,
+    wordId: Int?,
+    terms: List<String>
+): List<IntRange> {
+    val ranges = mutableListOf<IntRange>()
+    if (wordId != null && wordId > 0) {
+        links.filter { it.wordId == wordId && it.start >= 0 && it.end > it.start && it.end <= text.length }
+            .forEach { ranges += it.start until it.end }
+    }
+    if (ranges.isNotEmpty()) return ranges
+    for (term in terms) {
+        if (term.isBlank()) continue
+        var index = text.indexOf(term)
+        while (index >= 0) {
+            ranges += index until index + term.length
+            index = text.indexOf(term, index + term.length)
+        }
+        if (ranges.isNotEmpty()) break
+    }
+    return ranges
 }
 
 internal data class RubySegment(
@@ -240,23 +283,33 @@ private fun alignRubyReadingsGreedy(tokens: List<RubyToken>, kana: String): List
                 kanaIndex += hint.length
                 return@forEachIndexed
             }
-            val nextLiteral = tokens.drop(index + 1)
-                .firstOrNull { !it.kanji }
+            val nextLiteral = tokens.getOrNull(index + 1)
+                ?.takeIf { !it.kanji }
                 ?.base
-                ?.firstOrNull()
-            val end = nextLiteral
-                ?.let { literal ->
-                    (kana.length - 1 downTo kanaIndex)
-                        .firstOrNull { rubyLiteralEquals(literal, kana[it]) }
-                }
-                ?.coerceAtLeast(kanaIndex + 1)
-                ?: kana.length
+                ?.filterNot(::rubyCanDropLiteral)
+                ?.takeIf { it.isNotEmpty() }
+            // Take the nearest occurrence of the following literal run, not the last one in the
+            // sentence; otherwise one mismatch makes a single kanji swallow the rest of the reading.
+            val end = if (nextLiteral == null) {
+                kana.length
+            } else {
+                (kanaIndex + 1..kana.length - nextLiteral.length)
+                    .firstOrNull { rubyLiteralPrefixEquals(kana, it, nextLiteral) }
+                    ?: (kanaIndex + 1..kana.length - 1)
+                        .firstOrNull { rubyLiteralEquals(nextLiteral[0], kana[it]) }
+                    ?: kana.length
+            }
             val safeEnd = end.coerceIn(kanaIndex, kana.length)
             readings[index] = kana.substring(kanaIndex, safeEnd)
             kanaIndex = safeEnd
         } else {
             val consumed = consumeRubyLiteral(token.base, kana, kanaIndex)
-            if (consumed >= 0) kanaIndex += consumed
+            kanaIndex = if (consumed >= 0) {
+                kanaIndex + consumed
+            } else {
+                // Literal disagrees with the reading; assume one kana per char to stay in sync.
+                (kanaIndex + token.base.count { !rubyCanDropLiteral(it) }).coerceAtMost(kana.length)
+            }
         }
     }
     return readings
@@ -307,3 +360,6 @@ private fun normalizeRubyLiteral(char: Char): Char {
 private fun rubyCanDropLiteral(char: Char): Boolean {
     return canDropJapaneseRubyLiteral(char)
 }
+
+/** Opacity of the highlighter stroke behind the headword in example sentences. */
+private const val HEADWORD_MARKER_ALPHA = 0.28f

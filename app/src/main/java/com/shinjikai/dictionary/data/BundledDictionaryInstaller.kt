@@ -5,7 +5,9 @@ import android.util.Log
 import com.shinjikai.dictionary.R
 import java.io.File
 import java.io.InputStream
+import java.io.FilterInputStream
 import java.io.SequenceInputStream
+import java.util.concurrent.atomic.AtomicLong
 import java.util.Collections
 import java.util.zip.GZIPInputStream
 import kotlinx.coroutines.Dispatchers
@@ -30,7 +32,8 @@ class BundledDictionaryInstaller(
 
     suspend fun installIfNeeded(
         force: Boolean = false,
-        onProgress: suspend (phase: String, progress: Float) -> Unit = { _, _ -> }
+        onProgress: suspend (phase: String, progress: Float) -> Unit = { _, _ -> },
+        onIndexing: (importedCount: Int, progress: Float, preview: ImportPreviewEntry?) -> Unit = { _, _, _ -> }
     ): Result<BundledDictionaryInstallResult> {
         return runCatching {
             withContext(Dispatchers.IO) {
@@ -83,12 +86,18 @@ class BundledDictionaryInstaller(
 
                 onProgress(context.getString(R.string.offline_import_phase_index), 0.08f)
                 Log.i(TAG, "Starting bundled dictionary import. imageRoot=$imageRoot")
+                val totalBytes = jsonlPaths.sumOf { path -> assetByteLength(path) }.coerceAtLeast(1L)
+                val bytesRead = AtomicLong(0L)
                 val importedCount = importer.importFromJsonLineStreams(
                     sources = jsonlPaths.map { path ->
-                        JsonLineInput(path) { openDictionaryAsset(path) }
+                        JsonLineInput(path) { openDictionaryAsset(path, bytesRead) }
                     },
                     sourceLabel = BUNDLED_SOURCE_LABEL,
-                    offlineImageRoot = imageRoot
+                    offlineImageRoot = imageRoot,
+                    onEntryImported = { count, preview ->
+                        val fraction = (bytesRead.get().toFloat() / totalBytes).coerceIn(0f, 1f)
+                        onIndexing(count, INDEX_PROGRESS_START + fraction * INDEX_PROGRESS_SPAN, preview)
+                    }
                 ).getOrThrow()
                 Log.i(TAG, "Bundled dictionary import complete. importedCount=$importedCount")
 
@@ -154,8 +163,9 @@ class BundledDictionaryInstaller(
         }.getOrDefault(false)
     }
 
-    private fun openDictionaryAsset(path: String): InputStream {
-        val rawStream = context.assets.open(path).buffered()
+    private fun openDictionaryAsset(path: String, bytesRead: AtomicLong? = null): InputStream {
+        val assetStream = context.assets.open(path)
+        val rawStream = (if (bytesRead != null) CountingInputStream(assetStream, bytesRead) else assetStream).buffered()
         return when {
             path.endsWith(".xz", ignoreCase = true) -> XZCompressorInputStream(rawStream)
             path.endsWith(".gz", ignoreCase = true) -> GZIPInputStream(rawStream)
@@ -317,3 +327,29 @@ private data class InstalledImageRoot(
     val root: String,
     val installed: Boolean
 )
+
+private const val INDEX_PROGRESS_START = 0.08f
+private const val INDEX_PROGRESS_SPAN = 0.9f
+
+private class CountingInputStream(
+    input: InputStream,
+    private val counter: AtomicLong
+) : FilterInputStream(input) {
+    override fun read(): Int {
+        val value = super.read()
+        if (value >= 0) counter.incrementAndGet()
+        return value
+    }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        val count = super.read(b, off, len)
+        if (count > 0) counter.addAndGet(count.toLong())
+        return count
+    }
+
+    override fun skip(n: Long): Long {
+        val skipped = super.skip(n)
+        if (skipped > 0) counter.addAndGet(skipped)
+        return skipped
+    }
+}

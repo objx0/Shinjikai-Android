@@ -46,6 +46,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -212,7 +214,45 @@ private fun createDynamicColorScheme(
     context: Context,
     darkTheme: Boolean
 ): androidx.compose.material3.ColorScheme {
-    return if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    val scheme = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    return scheme.toShinjikaiTones(darkTheme)
+}
+
+/**
+ * Stock dynamic schemes use M3 baseline tones that don't fit the bento layout: surface equals
+ * background (cards vanish), surfaceVariant is a heavy tone-30 grey (chips/icon tiles), and the
+ * dark primaryContainer is a saturated tone-30 (watermarks and badges glare). Re-map the
+ * wallpaper palette onto the same tonal structure as the maroon brand schemes.
+ */
+private fun androidx.compose.material3.ColorScheme.toShinjikaiTones(
+    darkTheme: Boolean
+): androidx.compose.material3.ColorScheme {
+    return if (darkTheme) {
+        val bg = surfaceContainerLowest
+        val card = surfaceContainerLow
+        copy(
+            background = bg,
+            surface = card,
+            surfaceDim = bg,
+            surfaceContainer = card,
+            surfaceContainerHigh = lerp(surfaceContainerLow, surfaceContainerHigh, 0.5f),
+            surfaceVariant = surfaceContainerHigh,
+            surfaceContainerHighest = surfaceContainerHigh,
+            primaryContainer = lerp(primaryContainer, bg, 0.35f),
+            secondaryContainer = lerp(secondaryContainer, bg, 0.3f),
+            tertiaryContainer = lerp(tertiaryContainer, bg, 0.3f),
+            outlineVariant = lerp(outlineVariant, card, 0.35f)
+        )
+    } else {
+        copy(
+            background = surfaceContainerLow,
+            surface = surfaceContainerLowest,
+            surfaceBright = surfaceContainerLowest,
+            surfaceContainer = surfaceContainerLow,
+            surfaceVariant = surfaceContainerHigh,
+            outlineVariant = lerp(outlineVariant, surfaceContainerLowest, 0.3f)
+        )
+    }
 }
 
 object ShinjikaiUi {
@@ -247,6 +287,26 @@ object ShinjikaiUi {
     @Composable
     fun mutedTextColor(alpha: Float = 0.72f): Color {
         return MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+    }
+
+    @Composable
+    fun isLightScheme(): Boolean = MaterialTheme.colorScheme.background.luminance() > 0.5f
+
+    /**
+     * Bento tile fill. In light mode a tonal grey-pink fill on the off-white background reads as
+     * sunken/disabled, so tiles use the same white surface as other cards; dark keeps the tonal lift.
+     */
+    @Composable
+    fun tileColor(): Color {
+        val colors = MaterialTheme.colorScheme
+        return if (isLightScheme()) colors.surface else colors.surfaceVariant.copy(alpha = 0.45f)
+    }
+
+    /** Icon chip inside tiles/cards: soft brand tint in light mode so it doesn't vanish into the card. */
+    @Composable
+    fun tileChipColor(): Color {
+        val colors = MaterialTheme.colorScheme
+        return if (isLightScheme()) colors.primaryContainer.copy(alpha = 0.55f) else colors.surfaceVariant
     }
 }
 

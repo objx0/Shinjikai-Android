@@ -68,6 +68,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -80,18 +82,21 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipboardManager
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.unit.isSpecified
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -129,6 +134,8 @@ private data class DetailMeaningEntry(
     val examples: List<SentenceExample>
 )
 private data class DetailPicture(val url: String, val description: String)
+internal data class ExampleHeadword(val wordId: Int?, val terms: List<String>)
+private val LocalExampleHeadword = staticCompositionLocalOf<ExampleHeadword?> { null }
 internal data class GlossaryReference(val id: Int, val label: String, val start: Int = -1, val end: Int = -1)
 internal data class DefinitionContent(val text: String, val references: List<GlossaryReference>)
 private data class DefinitionTextSegment(val text: String, val referenceId: Int?)
@@ -149,6 +156,22 @@ private val MEANING_INLINE_TAG_REGEX =
     Regex("""\[\{\s*([^:{}\[\]]+)\s*:\s*([^{}\[\]]+)\s*\}\]|\{\s*([^:{}\[\]]+)\s*:\s*([^{}\[\]]+)\s*\}""")
 private val MEANING_BRACED_LABEL_REGEX = Regex("""\{\s*([^:{}][^:{}]*?)\s*\}""")
 private val GLOSSARY_REFERENCE_REGEX = Regex("""\{([^:{}]+):(\d+)\}""")
+private val GLOSSARY_REFERENCE_SUFFIXED_ID_REGEX = Regex("""\d+\s*:\s*[A-Za-z]+""")
+// Raw-data markup cleanup (see BundledDataMarkupTest, which scans the bundled data).
+private val MEANING_CATEGORY_LINE_REGEX = Regex("""(?m)^(\s*تصنيف\s*:)[ \t]*(.*\\.*)$""")
+private val MEANING_BACKSLASH_REGEX = Regex("""\s*\\+\s*""")
+private val MEANING_ANGLE_GROUP_REGEX = Regex("""<([^<>]*)>""")
+private val MEANING_STRAY_ANGLE_REGEX = Regex("""[<>]""")
+private val MEANING_DOUBLE_COLON_REGEX = Regex(""":\s*:""")
+// Truncated references: "label:123}" at the start, or "{label:123" with no closing brace.
+private val MEANING_LEADING_REFERENCE_FRAGMENT_REGEX = Regex("""^([^{}]*?):\d+\}""")
+private val MEANING_UNCLOSED_REFERENCE_REGEX = Regex("""\{([^{}:]+):\d+(?![^{]*\})""")
+private val MEANING_STRAY_OPEN_BRACE_REGEX = Regex("""\{(?![^{}:]+:\d+\})""")
+private val MEANING_STRAY_CLOSE_BRACE_REGEX = Regex("""(?<!\d)\}""")
+private val SENTENCE_REFERENCE_REGEX = Regex("""\{\s*([^{}:]+?)\s*:\s*\d+[^{}]*\}""")
+private val SENTENCE_NOTE_REGEX = Regex("""\{\s*([^{}]+?)\s*\}""")
+private val SENTENCE_TRAILING_SEMICOLON_REGEX = Regex("""\s*؛\s*$""")
+private val GLOSSARY_REFERENCE_MEANING_ID_REGEX = Regex("""\d+\s*#\s*\d+(\s*:\s*[A-Za-z]+)?""")
 private val WINDOWS_ABSOLUTE_IMAGE_PATH_REGEX = Regex("""^[A-Za-z]:/.*""")
 private val LOCAL_ABSOLUTE_IMAGE_PATH_REGEX = Regex("""^/(data|storage|sdcard|mnt)/.*""")
 
@@ -225,6 +248,17 @@ fun DetailScreenBody(
                 .map { it.text.trim() }
                 .filter { it.isNotBlank() && it != kanji }
                 .distinct()
+        }
+        val exampleHeadword = remember(details, kanji, kana, alternateWritings) {
+            val hasKanjiWriting = kanji != kana && kanji != "-"
+            ExampleHeadword(
+                wordId = details?.word?.id?.takeIf { it > 0 },
+                terms = (listOf(kanji) + alternateWritings + if (hasKanjiWriting) emptyList() else listOf(kana))
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() && it != "-" }
+                    .distinct()
+                    .sortedByDescending { it.length }
+            )
         }
         val notePrefix = stringResource(R.string.detail_note_prefix)
         val meaningEntries = remember(details) {
@@ -376,6 +410,7 @@ fun DetailScreenBody(
 
         if (meaningEntries.isNotEmpty()) {
             item {
+                CompositionLocalProvider(LocalExampleHeadword provides exampleHeadword) {
                 MeaningEntriesCard(
                 title = stringResource(R.string.detail_definitions_title),
                 entries = meaningEntries,
@@ -394,6 +429,7 @@ fun DetailScreenBody(
                     onOpenRelatedWord(relatedWord)
                 }
                 )
+                }
             }
         } else {
             item {
@@ -404,6 +440,15 @@ fun DetailScreenBody(
                     focusManager.clearFocus()
                     onOpenGlossaryReference(referenceId)
                 }
+                )
+            }
+        }
+
+        if (kanjiInfo.isNotEmpty()) {
+            item {
+                KanjiInformationSection(
+                title = stringResource(R.string.detail_kanji_title),
+                items = kanjiInfo
                 )
             }
         }
@@ -444,17 +489,9 @@ fun DetailScreenBody(
             }
         }
 
-        if (kanjiInfo.isNotEmpty()) {
-            item {
-                KanjiInformationSection(
-                title = stringResource(R.string.detail_kanji_title),
-                items = kanjiInfo
-                )
-            }
-        }
-
         if (examples.isNotEmpty()) {
             item {
+                CompositionLocalProvider(LocalExampleHeadword provides exampleHeadword) {
                 ExamplesCard(
                 title = stringResource(R.string.detail_additional_examples_title),
                 items = examples,
@@ -463,6 +500,7 @@ fun DetailScreenBody(
                     onOpenGlossaryReference(wordId)
                 }
                 )
+                }
             }
         }
 
@@ -522,12 +560,29 @@ internal fun normalizeMeaningText(raw: String): String = raw.trim()
     .replace(MEANING_CONTROL_MARKS_REGEX, "")
     .replace(MEANING_ARABIC_SEMICOLON_REGEX, " ")
     .replace(MEANING_PAREN_BAR_REGEX, "( $1 )")
+    .replace(MEANING_CATEGORY_LINE_REGEX) { match ->
+        // "تصنيف: \a\b\" -> "تصنيف: a، b"
+        val items = match.groupValues[2].split('\\').map { it.trim() }.filter { it.isNotEmpty() }
+        "${match.groupValues[1]} ${items.joinToString("، ")}"
+    }
+    .replace(MEANING_BACKSLASH_REGEX, " / ")
+    .replace("|", "")
+    .replace(MEANING_ANGLE_GROUP_REGEX, "($1)")
+    .replace(MEANING_STRAY_ANGLE_REGEX, "")
     .replace(MEANING_INLINE_TAG_REGEX) { match ->
         val label = (match.groups[1]?.value ?: match.groups[3]?.value).orEmpty().trim()
         val value = (match.groups[2]?.value ?: match.groups[4]?.value).orEmpty().trim()
         when {
             label.isEmpty() -> match.value
+            // Source anchor markers like {74167a2d2015111552447:anchor} carry no text.
+            value.equals("anchor", ignoreCase = true) -> ""
             value.all(Char::isDigit) -> "{$label:$value}"
+            // Meaning-level cross-references, e.g. {…:5739#4:S}, link to the word id.
+            GLOSSARY_REFERENCE_MEANING_ID_REGEX.matches(value) ->
+                "{$label:${value.substringBefore('#').trim()}}"
+            // Cross-references can carry a type suffix, e.g. {だいじしん:71912:S}.
+            GLOSSARY_REFERENCE_SUFFIXED_ID_REGEX.matches(value) ->
+                "{$label:${value.substringBefore(':').trim()}}"
             else -> "$label:"
         }
     }
@@ -535,11 +590,43 @@ internal fun normalizeMeaningText(raw: String): String = raw.trim()
         val label = match.groupValues[1].trim()
         if (label.isEmpty()) "" else "$label:"
     }
+    .replace(MEANING_DOUBLE_COLON_REGEX, ":")
+    .replace(MEANING_LEADING_REFERENCE_FRAGMENT_REGEX, "$1")
+    .replace(MEANING_UNCLOSED_REFERENCE_REGEX, "$1")
+    .replace(MEANING_STRAY_OPEN_BRACE_REGEX, "")
+    .replace(MEANING_STRAY_CLOSE_BRACE_REGEX, "")
     .replace(MEANING_BULLET_PREFIX_REGEX, "")
     .replace(MEANING_EMPTY_BRACES_REGEX, "")
     .replace(MEANING_TRAILING_SPACES_REGEX, "")
     .replace(MEANING_MULTISPACE_REGEX, " ")
     .trim()
+
+/** Cleans an example sentence's Arabic translation (shown as plain text, no links). */
+internal fun normalizeSentenceArabic(raw: String): String = raw.trim()
+    .replace("$", "")
+    .replace(MEANING_CONTROL_MARKS_REGEX, "")
+    .replace(MEANING_PAREN_BAR_REGEX, "($1)")
+    .replace("|", "")
+    .let(::stripSentenceReferences)
+    .replace(SENTENCE_NOTE_REGEX, "($1)")
+    .replace(MEANING_STRAY_OPEN_BRACE_REGEX, "")
+    .replace(MEANING_STRAY_CLOSE_BRACE_REGEX, "")
+    .replace(MEANING_BACKSLASH_REGEX, " / ")
+    .replace(SENTENCE_TRAILING_SEMICOLON_REGEX, "")
+    .replace(MEANING_MULTISPACE_REGEX, " ")
+    .trim()
+
+/** Cleans an example sentence's Japanese text (word links come separately). */
+internal fun normalizeSentenceText(raw: String): String = stripSentenceReferences(raw.trim())
+    .replace(SENTENCE_NOTE_REGEX, "$1")
+    .replace(MEANING_STRAY_OPEN_BRACE_REGEX, "")
+    .replace(MEANING_STRAY_CLOSE_BRACE_REGEX, "")
+    .trim()
+
+private fun stripSentenceReferences(text: String): String = text
+    .replace(SENTENCE_REFERENCE_REGEX, "$1")
+    .replace(MEANING_LEADING_REFERENCE_FRAGMENT_REGEX, "$1")
+    .replace(MEANING_UNCLOSED_REFERENCE_REGEX, "$1")
 
 private fun normalizeMeaningNote(raw: String): String {
     val cleaned = normalizeMeaningText(raw)
@@ -608,6 +695,12 @@ private fun ClickableDefinitionText(
     onTextLayout: (androidx.compose.ui.text.TextLayoutResult) -> Unit = {}
 ) {
     val referenceColor = MaterialTheme.colorScheme.primary
+    val referenceMarkerColor = referenceColor.copy(alpha = REFERENCE_MARKER_ALPHA)
+    val markerHeightPx = with(androidx.compose.ui.platform.LocalDensity.current) {
+        val fontSize = if (style.fontSize.isSpecified) style.fontSize else 16.sp
+        fontSize.toPx() * REFERENCE_MARKER_HEIGHT_FRACTION
+    }
+    val markerRadiusPx = with(androidx.compose.ui.platform.LocalDensity.current) { 2.dp.toPx() }
     val defaultColor = if (style.color == Color.Unspecified) {
         MaterialTheme.colorScheme.onSurface
     } else {
@@ -638,10 +731,7 @@ private fun ClickableDefinitionText(
             append(text)
             validReferences.forEach { reference ->
                 addStyle(
-                    style = SpanStyle(
-                        color = referenceColor,
-                        textDecoration = TextDecoration.Underline
-                    ),
+                    style = SpanStyle(color = referenceColor),
                     start = reference.start,
                     end = reference.end
                 )
@@ -656,13 +746,22 @@ private fun ClickableDefinitionText(
     }
 
     if (maxLines != Int.MAX_VALUE) {
+        var layout by remember { mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null) }
         ClickableText(
             text = annotatedText,
-            modifier = modifier,
+            modifier = modifier.drawBehind {
+                val result = layout ?: return@drawBehind
+                validReferences.forEach { reference ->
+                    drawMarkerStroke(result, reference.start, reference.end, referenceMarkerColor, markerHeightPx, markerRadiusPx)
+                }
+            },
             style = style.copy(color = defaultColor, textAlign = textAlign),
             maxLines = maxLines,
             overflow = overflow,
-            onTextLayout = onTextLayout,
+            onTextLayout = { result ->
+                layout = result
+                onTextLayout(result)
+            },
             onClick = { offset ->
                 annotatedText
                     .getStringAnnotations(GLOSSARY_REFERENCE_ANNOTATION_TAG, offset, offset)
@@ -702,16 +801,24 @@ private fun ClickableDefinitionText(
             ) {
                 line.forEach { segment ->
                     if (segment.referenceId != null) {
+                        var segmentLayout by remember(segment.text) {
+                            mutableStateOf<androidx.compose.ui.text.TextLayoutResult?>(null)
+                        }
                         Text(
                             text = segment.text,
-                            modifier = Modifier.clickable { onReferenceClick(segment.referenceId) },
+                            modifier = Modifier
+                                .clickable { onReferenceClick(segment.referenceId) }
+                                .drawBehind {
+                                    val result = segmentLayout ?: return@drawBehind
+                                    drawMarkerStroke(result, 0, segment.text.length, referenceMarkerColor, markerHeightPx, markerRadiusPx)
+                                },
                             style = style.copy(
                                 color = referenceColor,
-                                textDecoration = TextDecoration.Underline,
                                 textDirection = TextDirection.ContentOrLtr
                             ),
                             color = referenceColor,
-                            textAlign = TextAlign.Start
+                            textAlign = TextAlign.Start,
+                            onTextLayout = { segmentLayout = it }
                         )
                     } else {
                         Text(
@@ -724,6 +831,51 @@ private fun ClickableDefinitionText(
                 }
             }
         }
+    }
+}
+
+/** Opacity and height (as a fraction of the font size) of the highlighter stroke under linked words. */
+private const val REFERENCE_MARKER_ALPHA = 0.16f
+private const val REFERENCE_MARKER_HEIGHT_FRACTION = 0.42f
+
+/**
+ * Draws a highlighter-style stroke under [start, end) of [layout], one stroke per visual line,
+ * sitting on the baseline so it covers the lower part of the glyphs.
+ */
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMarkerStroke(
+    layout: androidx.compose.ui.text.TextLayoutResult,
+    start: Int,
+    end: Int,
+    color: Color,
+    markerHeight: Float,
+    radius: Float
+) {
+    val textLength = layout.layoutInput.text.length
+    val safeStart = start.coerceIn(0, textLength)
+    val safeEnd = end.coerceIn(safeStart, textLength)
+    if (safeEnd <= safeStart) return
+    val firstLine = layout.getLineForOffset(safeStart)
+    val lastLine = layout.getLineForOffset(safeEnd - 1).coerceAtMost(layout.lineCount - 1)
+    for (line in firstLine..lastLine) {
+        val lineStart = maxOf(safeStart, layout.getLineStart(line))
+        val lineEnd = minOf(safeEnd, layout.getLineEnd(line, visibleEnd = true))
+        if (lineEnd <= lineStart) continue
+        var left = Float.MAX_VALUE
+        var right = -Float.MAX_VALUE
+        for (offset in lineStart until lineEnd) {
+            val box = layout.getBoundingBox(offset)
+            left = minOf(left, box.left)
+            right = maxOf(right, box.right)
+        }
+        if (right <= left) continue
+        val baseline = layout.getLineBaseline(line)
+        val top = baseline - markerHeight * 0.72f
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(left, top),
+            size = androidx.compose.ui.geometry.Size(right - left, markerHeight),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(radius)
+        )
     }
 }
 
@@ -1291,6 +1443,7 @@ private fun DetailMetaTile(
 private val DetailSectionShape = RoundedCornerShape(28.dp)
 private val DetailTileShape = RoundedCornerShape(22.dp)
 private val DetailInnerShape = RoundedCornerShape(18.dp)
+private val MeaningTileShape = RoundedCornerShape(22.dp)
 
 @Composable
 private fun DetailSectionSurface(
@@ -1545,13 +1698,14 @@ private fun buildAnkiNoteContent(
     val primaryExample = examples.firstOrNull()
     val example = buildString {
         primaryExample?.let {
-            val exampleText = it.text.ifBlank { it.kana }.trim()
+            val exampleText = normalizeSentenceText(it.text).ifBlank { it.kana }.trim()
             if (exampleText.isNotBlank()) {
                 append(exampleText)
             }
-            if (it.arabic.isNotBlank()) {
+            val exampleArabic = normalizeSentenceArabic(it.arabic)
+            if (exampleArabic.isNotBlank()) {
                 if (isNotEmpty()) append("\n")
-                append(it.arabic.trim())
+                append(exampleArabic)
             }
         }
     }.trim()
@@ -1576,25 +1730,54 @@ private fun MeaningEntriesCard(
     onExampleWordClick: (Int) -> Unit,
     onRelatedWordClick: (RelatedWordItem) -> Unit
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        DetailSectionTitle(
-            text = title,
-            trailing = entries.size.toString(),
-            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 6.dp)
-        )
-        entries.forEachIndexed { index, entry ->
-            MeaningEntryCard(
-                entryNumber = index + 1,
-                entry = entry,
-                notePrefix = notePrefix,
-                onImageClick = onImageClick,
-                onGlossaryReferenceClick = onGlossaryReferenceClick,
-                onExampleWordClick = onExampleWordClick,
-                onRelatedWordClick = onRelatedWordClick
-            )
+    val colors = MaterialTheme.colorScheme
+    DetailSectionSurface {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 12.dp, bottom = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    modifier = Modifier.semantics { heading() },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.onSurfaceVariant
+                )
+                Box(
+                    modifier = Modifier
+                        .clip(ShinjikaiUi.PillShape)
+                        .background(colors.primaryContainer)
+                        .padding(horizontal = 10.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = entries.size.toString(),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onPrimaryContainer
+                    )
+                }
+            }
+            entries.forEachIndexed { index, entry ->
+                MeaningEntryCard(
+                    entryNumber = index + 1,
+                    entry = entry,
+                    notePrefix = notePrefix,
+                    onImageClick = onImageClick,
+                    onGlossaryReferenceClick = onGlossaryReferenceClick,
+                    onExampleWordClick = onExampleWordClick,
+                    onRelatedWordClick = onRelatedWordClick
+                )
+            }
         }
     }
 }
@@ -1613,7 +1796,11 @@ private fun MeaningEntryCard(
     var definitionExpanded by remember(entry.definition) { mutableStateOf(false) }
     var definitionCanExpand by remember(entry.definition) { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
-    DetailSectionSurface {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MeaningTileShape,
+        color = colors.surfaceContainerHigh
+    ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1697,7 +1884,7 @@ private fun MeaningEntryCard(
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
                     shape = DetailInnerShape,
-                    color = colors.background
+                    color = colors.surface
                 ) {
                     Column(
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
@@ -1746,7 +1933,7 @@ private fun MeaningEntryCard(
                 HorizontalDivider(color = colors.outlineVariant)
                 DetailSectionTitle(
                     text = stringResource(R.string.detail_meaning_examples_title),
-                    trailing = stringResource(R.string.detail_examples_count, entry.examples.size)
+                    trailing = pluralStringResource(R.plurals.detail_examples_count, entry.examples.size, entry.examples.size)
                 )
                 ExampleList(
                     items = entry.examples,
@@ -1850,12 +2037,20 @@ private fun shouldJoinGlossaryTermChars(previous: Char, current: Char): Boolean 
 }
 
 private fun formatJapaneseDefinitionWithSource(japanese: String, source: String): String {
-    val trimmedJapanese = japanese.trim()
+    // The source is already shown in the meaning header, so strip any trailing
+    // citation like 〔明鏡国語辞典〕 / 【…】 / (…) instead of repeating it in the text.
+    var text = japanese.trim()
     val trimmedSource = source.trim()
-    if (trimmedSource.isBlank() || trimmedJapanese.contains(trimmedSource)) {
-        return trimmedJapanese
+    if (trimmedSource.isNotBlank()) {
+        val citation = Regex(
+            "[\\s\u3000]*[〔【\\[［(（]\\s*" + Regex.escape(trimmedSource) + "\\s*[〕】\\]］)）][\\s\u3000]*$"
+        )
+        text = text.replace(citation, "").trimEnd()
+        if (text.endsWith(trimmedSource)) {
+            text = text.removeSuffix(trimmedSource).trimEnd()
+        }
     }
-    return "$trimmedJapanese\n\u3014$trimmedSource\u3015"
+    return text.ifBlank { japanese.trim() }
 }
 
 @Composable
@@ -1944,68 +2139,211 @@ private fun KanjiInformationSection(
 ) {
     val colors = MaterialTheme.colorScheme
     DetailSectionCard(title = title) {
-        items.chunked(2).forEach { rowItems ->
-            Row(
+        Column(modifier = Modifier.fillMaxWidth()) {
+            items.forEachIndexed { index, item ->
+                if (index > 0) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 4.dp),
+                        color = colors.outlineVariant.copy(alpha = 0.6f)
+                    )
+                }
+                KanjiInfoRow(item = item)
+            }
+        }
+    }
+}
+
+private val KANJI_READING_SEPARATOR_REGEX = Regex("[・、,，;；\\s]+")
+private val KanjiGlyphTileShape = RoundedCornerShape(14.dp)
+private val KanjiRowShape = RoundedCornerShape(16.dp)
+
+private fun splitKanjiReadings(raw: String): List<String> =
+    raw.split(KANJI_READING_SEPARATOR_REGEX).map { it.trim() }.filter { it.isNotEmpty() }
+
+private fun kanjiReadingAnnotated(reading: String, okuriganaColor: Color): AnnotatedString =
+    buildAnnotatedString {
+        val dot = reading.indexOf('.')
+        if (dot < 0) {
+            append(reading)
+        } else {
+            append(reading.substring(0, dot))
+            withStyle(SpanStyle(color = okuriganaColor)) {
+                append(reading.substring(dot + 1))
+            }
+        }
+    }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun KanjiInfoRow(item: KanjiInfo) {
+    val colors = MaterialTheme.colorScheme
+    val onReadings = remember(item.onYomi) { splitKanjiReadings(item.onYomi) }
+    val kunReadings = remember(item.kunYomi) { splitKanjiReadings(item.kunYomi) }
+    val hasReadings = onReadings.isNotEmpty() || kunReadings.isNotEmpty()
+    var expanded by remember(item.character) { mutableStateOf(false) }
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        label = "kanjiRowArrow"
+    )
+    val dimColor = colors.onSurfaceVariant.copy(alpha = 0.5f)
+    val summary = remember(onReadings, kunReadings, dimColor) {
+        buildAnnotatedString {
+            val parts = listOfNotNull(onReadings.firstOrNull(), kunReadings.firstOrNull())
+            parts.forEachIndexed { i, reading ->
+                if (i > 0) append("・")
+                append(kanjiReadingAnnotated(reading, dimColor))
+            }
+        }
+    }
+    val stateLabel = if (expanded) "مفتوحة" else "مطوية"
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(KanjiRowShape)
+                .then(
+                    if (hasReadings) {
+                        Modifier
+                            .clickable(role = Role.Button) { expanded = !expanded }
+                            .semantics { stateDescription = stateLabel }
+                    } else {
+                        Modifier
+                    }
+                )
+                .padding(horizontal = 4.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    .size(56.dp)
+                    .clip(KanjiGlyphTileShape)
+                    .background(colors.surfaceVariant.copy(alpha = 0.55f)),
+                contentAlignment = Alignment.Center
             ) {
-                rowItems.forEach { item ->
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight(),
-                        shape = DetailTileShape,
-                        color = colors.surfaceVariant.copy(alpha = 0.45f),
-                        border = BorderStroke(1.dp, colors.outlineVariant)
+                Text(
+                    text = item.displayCharacter(),
+                    style = MaterialTheme.typography.displaySmall.copy(fontSize = 34.sp),
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onSurface
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                if (item.meaning.isNotBlank()) {
+                    Text(
+                        text = forceRtlText(item.meaning),
+                        style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Rtl),
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onSurface,
+                        maxLines = if (expanded) Int.MAX_VALUE else 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (summary.isNotEmpty()) {
+                    AnimatedVisibility(
+                        visible = !expanded,
+                        enter = fadeIn() + expandVertically(),
+                        exit = fadeOut() + shrinkVertically()
                     ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            SelectionContainer {
-                                Text(
-                                    text = item.displayCharacter(),
-                                    style = MaterialTheme.typography.displaySmall.copy(fontSize = 40.sp),
-                                    fontWeight = FontWeight.Bold,
-                                    color = colors.onSurface
-                                )
-                            }
-                            if (item.onYomi.isNotBlank()) {
-                                Text(
-                                    text = stringResource(R.string.detail_on_yomi, item.onYomi),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                            if (item.kunYomi.isNotBlank()) {
-                                Text(
-                                    text = stringResource(R.string.detail_kun_yomi, item.kunYomi),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = colors.onSurfaceVariant,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                            if (item.meaning.isNotBlank()) {
-                                HorizontalDivider(color = colors.outlineVariant)
-                                Text(
-                                    text = forceRtlText(item.meaning),
-                                    style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Rtl),
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = colors.onSurface,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
+                        Text(
+                            text = summary,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
-                if (rowItems.size == 1) {
-                    Spacer(modifier = Modifier.weight(1f))
+            }
+            if (hasReadings) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_detail_expand),
+                    contentDescription = null,
+                    tint = colors.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(18.dp)
+                        .rotate(arrowRotation)
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = expanded && hasReadings,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 72.dp, end = 4.dp, bottom = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (onReadings.isNotEmpty()) {
+                    KanjiReadingGroup(
+                        label = stringResource(R.string.detail_on_yomi_label),
+                        readings = onReadings,
+                        filled = true
+                    )
+                }
+                if (kunReadings.isNotEmpty()) {
+                    KanjiReadingGroup(
+                        label = stringResource(R.string.detail_kun_yomi_label),
+                        readings = kunReadings,
+                        filled = false
+                    )
                 }
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun KanjiReadingGroup(
+    label: String,
+    readings: List<String>,
+    filled: Boolean
+) {
+    val colors = MaterialTheme.colorScheme
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = colors.onSurfaceVariant
+        )
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            readings.forEach { reading ->
+                KanjiReadingChip(reading = reading, filled = filled)
+            }
+        }
+    }
+}
+
+@Composable
+private fun KanjiReadingChip(reading: String, filled: Boolean) {
+    val colors = MaterialTheme.colorScheme
+    val textColor = if (filled) colors.onPrimaryContainer else colors.onSurface
+    val okuriganaColor = textColor.copy(alpha = 0.5f)
+    val text = remember(reading, okuriganaColor) { kanjiReadingAnnotated(reading, okuriganaColor) }
+    Surface(
+        shape = ShinjikaiUi.PillShape,
+        color = if (filled) colors.primaryContainer else Color.Transparent,
+        border = if (filled) null else BorderStroke(1.dp, colors.outlineVariant)
+    ) {
+        SelectionContainer {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = textColor,
+                modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp)
+            )
         }
     }
 }
@@ -2122,7 +2460,7 @@ private fun ExamplesCard(
 ) {
     DetailSectionCard(
         title = title,
-        trailing = stringResource(R.string.detail_examples_count, items.size)
+        trailing = pluralStringResource(R.plurals.detail_examples_count, items.size, items.size)
     ) {
         ExampleList(
             items = items,
@@ -2141,12 +2479,14 @@ private fun ExampleList(
     var visibleCount by remember(items, initiallyVisible) {
         mutableStateOf(initiallyVisible.coerceAtMost(items.size))
     }
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        items.take(visibleCount).forEach { item ->
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        items.take(visibleCount).forEachIndexed { index, item ->
+            if (index > 0) HorizontalDivider(color = dividerColor)
             SentenceExampleRow(item = item, onWordClick = onWordClick)
+        }
+        if (visibleCount < items.size || items.size > initiallyVisible) {
+            Spacer(modifier = Modifier.height(8.dp))
         }
         if (visibleCount < items.size) {
             DetailOutlinedPillButton(
@@ -2177,15 +2517,15 @@ private fun SentenceExampleRow(
     val exampleFallback = stringResource(R.string.detail_example_fallback)
     val exampleCopiedMessage = stringResource(R.string.detail_example_copied)
     val copyLabel = stringResource(R.string.detail_copy_example)
-    val displayText = item.text.ifBlank { item.kana.ifBlank { exampleFallback } }
+    val displayText = normalizeSentenceText(item.text).ifBlank { item.kana.ifBlank { exampleFallback } }
+    val arabicText = remember(item.arabic) { normalizeSentenceArabic(item.arabic) }
     val colors = MaterialTheme.colorScheme
-    val shape = RoundedCornerShape(20.dp)
+    val headword = LocalExampleHeadword.current
+    val shape = RoundedCornerShape(12.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(colors.surfaceVariant.copy(alpha = 0.45f))
-            .border(1.dp, colors.outlineVariant, shape)
             .combinedClickable(
                 onClick = {},
                 onLongClickLabel = copyLabel,
@@ -2195,25 +2535,26 @@ private fun SentenceExampleRow(
                     Toast.makeText(context, exampleCopiedMessage, Toast.LENGTH_SHORT).show()
                 }
             )
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         RubyJapaneseText(
             text = displayText,
             kana = item.kana,
             links = item.wordLinks.orEmpty(),
             onWordClick = onWordClick,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            highlightWordId = headword?.wordId,
+            highlightTerms = headword?.terms.orEmpty()
         )
-        if (item.arabic.isNotBlank()) {
-            HorizontalDivider(color = colors.outlineVariant)
+        if (arabicText.isNotBlank()) {
             Text(
-                text = forceRtlText(item.arabic),
+                text = forceRtlText(arabicText),
                 style = MaterialTheme.typography.bodyMedium.copy(
                     textDirection = TextDirection.Rtl,
-                    lineHeight = 24.sp
+                    lineHeight = 22.sp
                 ),
-                color = colors.onSurface,
+                color = colors.onSurfaceVariant,
                 textAlign = TextAlign.Right,
                 modifier = Modifier.fillMaxWidth()
             )

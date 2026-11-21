@@ -43,6 +43,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -85,7 +88,15 @@ import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
 import androidx.paging.PagingData
 import androidx.paging.compose.collectAsLazyPagingItems
+import com.shinjikai.dictionary.data.ImportPreviewEntry
 import com.shinjikai.dictionary.data.SearchItem
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.rememberUpdatedState
+import kotlinx.coroutines.delay
 import com.shinjikai.dictionary.ui.ResultMode
 import com.shinjikai.dictionary.ui.SearchUiState
 import com.shinjikai.dictionary.ui.ShinjikaiViewModel
@@ -109,6 +120,7 @@ fun SearchScreenContent(
 ) {
     val focusManager = LocalFocusManager.current
     val lazyResults = searchResults.collectAsLazyPagingItems()
+    val searchTotalCount by viewModel.searchTotalCount.collectAsState()
     val resultsListState = rememberLazyListState()
     val searchFocusRequester = remember { FocusRequester() }
     var isSearchFieldReady by remember { mutableStateOf(false) }
@@ -217,14 +229,23 @@ fun SearchScreenContent(
                 }
 
                 if (offlineDictionaryUnavailable) {
-                    OfflineDictionaryStateCard(
-                        uiState = uiState,
-                        onRetry = onRetryBundledImport,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp)
-                    )
-                    Box(modifier = Modifier.weight(1f))
+                    if (uiState.isImportingOfflineData) {
+                        DictionaryIndexingPreview(
+                            uiState = uiState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        )
+                    } else {
+                        OfflineDictionaryStateCard(
+                            uiState = uiState,
+                            onRetry = onRetryBundledImport,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp)
+                        )
+                        Box(modifier = Modifier.weight(1f))
+                    }
                 } else {
                     AnimatedContent(
                     targetState = useOfflineMode,
@@ -360,7 +381,9 @@ fun SearchScreenContent(
                             ) {
                                 if (lazyResults.itemCount > 0) {
                                     item(key = "results-label") {
-                                        SearchSectionLabel(text = stringResource(R.string.search_results_title))
+                                        SearchResultsHeader(
+                                            count = searchTotalCount ?: lazyResults.itemCount
+                                        )
                                     }
                                 }
                                 items(
@@ -415,6 +438,150 @@ fun SearchScreenContent(
                 }
             }
 
+        }
+    }
+}
+
+private val IndexingFallbackSamples = listOf(
+    ImportPreviewEntry(expression = "海", reading = "うみ", meaning = "بحر"),
+    ImportPreviewEntry(expression = "辞書", reading = "じしょ", meaning = "قاموس"),
+    ImportPreviewEntry(expression = "深い", reading = "ふかい", meaning = "عميق"),
+    ImportPreviewEntry(expression = "学ぶ", reading = "まなぶ", meaning = "يتعلّم"),
+    ImportPreviewEntry(expression = "言葉", reading = "ことば", meaning = "كلمة"),
+    ImportPreviewEntry(expression = "夢", reading = "ゆめ", meaning = "حلم"),
+    ImportPreviewEntry(expression = "山", reading = "やま", meaning = "جبل")
+)
+
+private const val INDEXING_CARD_INTERVAL_MS = 1100L
+
+@Composable
+private fun DictionaryIndexingPreview(
+    uiState: SearchUiState,
+    modifier: Modifier = Modifier
+) {
+    val colors = MaterialTheme.colorScheme
+    val latestPreview by rememberUpdatedState(uiState.offlineImportPreview)
+    var shownEntry by remember { mutableStateOf(IndexingFallbackSamples.first()) }
+
+    LaunchedEffect(Unit) {
+        var fallbackIndex = 0
+        while (true) {
+            delay(INDEXING_CARD_INTERVAL_MS)
+            val real = latestPreview
+            shownEntry = when {
+                real != null -> real
+                else -> {
+                    fallbackIndex = (fallbackIndex + 1) % IndexingFallbackSamples.size
+                    IndexingFallbackSamples[fallbackIndex]
+                }
+            }
+        }
+    }
+
+    val animatedCount by animateIntAsState(
+        targetValue = uiState.offlineIndexedCount,
+        animationSpec = tween(durationMillis = 700),
+        label = "indexedCount"
+    )
+    val animatedProgress by animateFloatAsState(
+        targetValue = uiState.offlineImportProgress,
+        animationSpec = tween(durationMillis = 500),
+        label = "indexProgress"
+    )
+
+    Column(
+        modifier = modifier.padding(bottom = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Surface(
+            modifier = Modifier.size(width = 176.dp, height = 118.dp),
+            shape = RoundedCornerShape(24.dp),
+            color = colors.surface,
+            border = BorderStroke(1.dp, colors.outlineVariant)
+        ) {
+            AnimatedContent(
+                targetState = shownEntry,
+                transitionSpec = {
+                    (
+                        slideInVertically(animationSpec = tween(320)) { it / 3 } +
+                            fadeIn(animationSpec = tween(320))
+                        ) togetherWith (
+                        slideOutVertically(animationSpec = tween(220)) { -it / 3 } +
+                            fadeOut(animationSpec = tween(180))
+                        )
+                },
+                label = "indexingEntry"
+            ) { entry ->
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    if (entry.reading.isNotBlank()) {
+                        Text(
+                            text = entry.reading,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
+                    Text(
+                        text = entry.expression,
+                        fontSize = 32.sp,
+                        lineHeight = 40.sp,
+                        color = colors.onSurface,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = entry.meaning,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            text = String.format(Locale.US, "%,d", animatedCount),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.primary
+        )
+        Text(
+            text = if (uiState.offlineIndexedCount > 0) {
+                stringResource(R.string.offline_dictionary_indexed_caption)
+            } else {
+                uiState.offlineImportPhase ?: stringResource(R.string.offline_dictionary_indexing_title)
+            },
+            modifier = Modifier.padding(top = 4.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = colors.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        val barModifier = Modifier
+            .width(176.dp)
+            .clip(ShinjikaiUi.PillShape)
+        if (uiState.offlineImportProgress > 0f) {
+            LinearProgressIndicator(
+                progress = { animatedProgress },
+                modifier = barModifier,
+                trackColor = colors.outlineVariant.copy(alpha = 0.5f),
+                drawStopIndicator = {}
+            )
+        } else {
+            LinearProgressIndicator(
+                modifier = barModifier,
+                trackColor = colors.outlineVariant.copy(alpha = 0.5f)
+            )
         }
     }
 }
@@ -692,6 +859,29 @@ private fun SearchSectionLabel(text: String) {
 }
 
 @Composable
+private fun SearchResultsHeader(count: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        SearchSectionLabel(text = stringResource(R.string.search_results_title))
+        Spacer(modifier = Modifier.weight(1f))
+        AnimatedContent(
+            targetState = count,
+            transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+            label = "searchResultsCount"
+        ) { value ->
+            Text(
+                text = pluralStringResource(R.plurals.search_results_count, value, value),
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 6.dp, bottom = 2.dp),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+            )
+        }
+    }
+}
+
+@Composable
 @OptIn(ExperimentalLayoutApi::class)
 private fun LandingSuggestions(
     modifier: Modifier = Modifier,
@@ -812,7 +1002,7 @@ private fun WordOfTheDayCard(
                 }
                 if (item.meaningSummary.isNotBlank()) {
                     Text(
-                        text = forceRtlText(item.meaningSummary),
+                        text = forceRtlText(formatOfflineSearchPreview(item.meaningSummary)),
                         modifier = Modifier.fillMaxWidth(),
                         style = MaterialTheme.typography.bodyLarge.copy(textDirection = TextDirection.Rtl),
                         color = colors.onSurface.copy(alpha = 0.86f),
@@ -965,7 +1155,7 @@ private fun LandingPicksCard(
                         )
                     }
                     Text(
-                        text = forceRtlText(item.meaningSummary),
+                        text = forceRtlText(formatOfflineSearchPreview(item.meaningSummary)),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium.copy(textDirection = TextDirection.Rtl),
                         color = colors.onSurfaceVariant,

@@ -13,7 +13,8 @@ data class SearchRequestSpec(
 
 class SearchPagingSource(
     private val repository: ShinjikaiRepository,
-    private val spec: SearchRequestSpec
+    private val spec: SearchRequestSpec,
+    private val onTotalCount: ((Int) -> Unit)? = null
 ) : PagingSource<Int, SearchItem>() {
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, SearchItem> {
         val pageIndex = params.key ?: 0
@@ -30,6 +31,7 @@ class SearchPagingSource(
         return result.fold(
             onSuccess = { response ->
                 val currentPage = response.page.coerceAtLeast(pageIndex)
+                onTotalCount?.invoke(maxOf(response.totalCount, response.items.size))
                 LoadResult.Page(
                     data = response.items,
                     prevKey = currentPage.takeIf { it > 0 }?.minus(1),

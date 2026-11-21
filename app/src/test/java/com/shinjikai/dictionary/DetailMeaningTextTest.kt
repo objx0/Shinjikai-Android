@@ -35,4 +35,25 @@ class DetailMeaningTextTest {
         assertEquals("label: \u7A7A:", visible)
         assertTrue(visible.none { it == '{' || it == '}' })
     }
+
+    @Test
+    fun `raw data markup is cleaned from meanings`() {
+        val anchor = normalizeMeaningText("{long seat 和製英語} مَقَاعِد؛{74167a2d2015111552447:anchor}$ نوع")
+        assertTrue("74167a2d" !in anchor && "anchor" !in anchor)
+        assertEquals("كَائِن [جمع: كَائِنَات]", normalizeMeaningText("كَائِن [{جمع:NO}: كَائِنَات]"))
+        assertEquals("تصنيف: فوات الأوان، عدم الفائدة", normalizeMeaningText("\$تصنيف: \\فوات الأوان\\عدم الفائدة\\\n"))
+        assertEquals("عادي، ( حساب ) جارٍ، ( نفقات ) متكررة", normalizeMeaningText("عادي، (|حساب|) جارٍ، (||نفقات|) متكررة؛"))
+        assertEquals("ذوّاقة (فرنسية: gourmet)", normalizeMeaningText("ذوّاقة <فرنسية: gourmet>؛"))
+        assertEquals("{كلمة:5739}", normalizeMeaningText("{كلمة:5739#4:S}"))
+    }
+
+    @Test
+    fun `raw data markup is cleaned from example sentences`() {
+        assertEquals("يُنتِج (من النفط)", normalizeSentenceArabic("يُنتِج (|من النفط|) "))
+        assertEquals("شيئًا. (الجدة هي المتحدثة)", normalizeSentenceArabic("شيئًا. {الجدة هي المتحدثة}"))
+        assertEquals("مع جبال الألب وسلسلة الألب", normalizeSentenceArabic("مع {جبال الألب:4209} وسلسلة {الألب:22364"))
+        assertEquals("سريعاً. / هذه الطفلة", normalizeSentenceArabic("سريعاً. \\ هذه الطفلة"))
+        assertEquals("飛騨山脈.", normalizeSentenceText("飛騨山脈:78370}."))
+    }
 }
+

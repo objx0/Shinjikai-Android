@@ -2,6 +2,7 @@ package com.shinjikai.dictionary.ui
 
 import com.shinjikai.dictionary.data.AppSettings
 import com.shinjikai.dictionary.data.BookmarkItem
+import com.shinjikai.dictionary.data.ImportPreviewEntry
 import com.shinjikai.dictionary.data.RecentSearchEntry
 import com.shinjikai.dictionary.data.SearchItem
 import com.shinjikai.dictionary.data.WordDetailsResponse
@@ -29,6 +30,9 @@ data class SearchUiState(
     val offlineImportError: Boolean = false,
     val offlineImportStatus: String? = null,
     val offlineImportPhase: String? = null,
+    val offlineImportProgress: Float = 0f,
+    val offlineIndexedCount: Int = 0,
+    val offlineImportPreview: ImportPreviewEntry? = null,
     val offlineTermCount: Int = 0,
     val isOfflineDictionaryStateLoaded: Boolean = false
 )

@@ -51,11 +51,8 @@ fun DictionaryEntryCard(
         onClick = onClick,
         modifier = modifier.fillMaxWidth(),
         shape = EntryCardShape,
-        color = if (highlighted) colors.surfaceVariant.copy(alpha = 0.45f) else colors.surface,
-        border = BorderStroke(
-            1.dp,
-            if (highlighted) colors.primary.copy(alpha = 0.35f) else colors.outlineVariant
-        )
+        color = colors.surface,
+        border = BorderStroke(1.dp, colors.outlineVariant)
     ) {
         Column(
             modifier = Modifier

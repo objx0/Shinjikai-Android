@@ -1,6 +1,6 @@
 package com.shinjikai.dictionary
 
-import java.util.Calendar
+import java.util.TimeZone
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -180,13 +180,12 @@ private fun historyDayLabel(
     dateFormatter: DateFormat
 ): String {
     if (epochMs == null) return older
-    val now = Calendar.getInstance()
-    val then = Calendar.getInstance().apply { timeInMillis = epochMs }
-    fun Calendar.dayKey() = get(Calendar.YEAR) * 1000 + get(Calendar.DAY_OF_YEAR)
-    val yesterdayCal = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
-    return when (then.dayKey()) {
-        now.dayKey() -> today
-        yesterdayCal.dayKey() -> yesterday
+    val tz = TimeZone.getDefault()
+    fun localDay(ms: Long) = Math.floorDiv(ms + tz.getOffset(ms), 86_400_000L)
+    val todayKey = localDay(System.currentTimeMillis())
+    return when (localDay(epochMs)) {
+        todayKey -> today
+        todayKey - 1 -> yesterday
         else -> dateFormatter.format(Date(epochMs))
     }
 }

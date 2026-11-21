@@ -66,7 +66,8 @@ fun BrowseScreenContent(
     viewModel: ShinjikaiViewModel,
     browseFlow: Flow<PagingData<SearchItem>>,
     totalEntries: Int,
-    onOpenDetails: (SearchItem) -> Unit
+    onOpenDetails: (SearchItem) -> Unit,
+    onOpenShuffle: () -> Unit
 ) {
     val entries = browseFlow.collectAsLazyPagingItems()
     val refreshState = entries.loadState.refresh
@@ -107,7 +108,7 @@ fun BrowseScreenContent(
             }
 
             item(key = "browse-random") {
-                RandomEntryTile(onClick = { viewModel.openRandomDictionaryEntry(onOpenDetails) })
+                RandomEntryTile(onClick = onOpenShuffle)
             }
 
             item(key = "browse-kana") {

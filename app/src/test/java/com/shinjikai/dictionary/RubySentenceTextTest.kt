@@ -160,4 +160,35 @@ class RubySentenceTextTest {
             segments
         )
     }
+
+    @Test
+    fun `katakana in sentence aligns against hiragana kana`() {
+        val segments = buildRubySegments(
+            text = "警察がデモ隊を散乱させるために、催涙ガスを用いました。",
+            kana = "けいさつがでもたいをさんらんさせるために、さいるいがすをもちいました。",
+            links = emptyList()
+        )
+        val rubies = segments.filter { it.ruby != null }.associate { it.base to it.ruby }
+
+        assertEquals(
+            mapOf(
+                "警察" to "けいさつ",
+                "隊" to "たい",
+                "散乱" to "さんらん",
+                "催涙" to "さいるい",
+                "用" to "もち"
+            ),
+            rubies
+        )
+    }
+
+    @Test
+    fun `katakana long vowel mark matches spelled-out vowel`() {
+        val segments = buildRubySegments(
+            text = "コーヒーを飲む",
+            kana = "こうひいをのむ",
+            links = emptyList()
+        )
+        assertEquals("の", segments.first { it.base == "飲" }.ruby)
+    }
 }

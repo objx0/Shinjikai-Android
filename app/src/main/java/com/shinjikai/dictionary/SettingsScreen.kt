@@ -1,6 +1,5 @@
 package com.shinjikai.dictionary
 
-import androidx.compose.ui.text.style.TextDirection
 import android.content.Intent
 import android.content.Context
 import android.net.Uri
@@ -114,7 +113,6 @@ private val SettingsTileChipShape = RoundedCornerShape(14.dp)
 
 private const val ShinjikaiWebsiteUrl = "https://shinjikai.app"
 private const val ShinjikaiSourceUrl = "https://github.com/objx0/Shinjikai-Android"
-private const val CcByLicenseUrl = "https://creativecommons.org/licenses/by/4.0/"
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
@@ -162,7 +160,7 @@ fun SettingsScreenContent(
         ) {
             SettingsHeader()
 
-            SettingsSectionCard(title = stringResource(R.string.settings_appearance_title)) {
+            SettingsSectionCard {
                 ThemeModeSegmentedControl(
                     selectedMode = settings.themeMode,
                     onModeSelected = viewModel::setThemeMode
@@ -172,212 +170,150 @@ fun SettingsScreenContent(
                     SettingsSwitchRow(
                         iconRes = R.drawable.ic_settings_palette,
                         title = stringResource(R.string.settings_dynamic_color),
-                        description = stringResource(R.string.settings_dynamic_color_description),
                         checked = settings.useDynamicColor,
                         onCheckedChange = viewModel::setUseDynamicColor
                     )
                 }
             }
 
-            SettingsSectionCard(title = stringResource(R.string.settings_data_title)) {
-                Row(
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SettingsTile(
+                    iconRes = R.drawable.ic_settings_dictionaries,
+                    title = stringResource(R.string.settings_dictionaries_tile_title),
+                    subtitle = dictionariesSubtitle,
+                    onClick = onOpenLocalDictionary,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    SettingsTile(
-                        iconRes = R.drawable.ic_settings_dictionaries,
-                        title = stringResource(R.string.settings_dictionaries_tile_title),
-                        subtitle = dictionariesSubtitle,
-                        onClick = onOpenLocalDictionary,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                    )
-                    SettingsTile(
-                        iconRes = R.drawable.ic_anki,
-                        title = stringResource(R.string.settings_anki_exporter_title),
-                        subtitle = ankiSubtitle,
-                        onClick = onOpenAnkiExporterSettings,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                    )
-                }
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
+                SettingsTile(
+                    iconRes = R.drawable.ic_anki,
+                    title = stringResource(R.string.settings_anki_exporter_title),
+                    subtitle = ankiSubtitle,
+                    onClick = onOpenAnkiExporterSettings,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
             }
 
-            AboutCreditCard(
+            AboutLinksCard(
                 onOpenWebsite = { openUrl(ShinjikaiWebsiteUrl) },
-                onOpenLicense = { openUrl(CcByLicenseUrl) }
+                onOpenSource = { openUrl(ShinjikaiSourceUrl) }
             )
-            AboutSourceRow(onClick = { openUrl(ShinjikaiSourceUrl) })
             AboutFooter(versionLabel = appVersionLabel)
         }
     }
 }
 
-/** Credits the dictionary source (shinjikai.app) and states the app is unofficial. */
+/**
+ * One card, two links: the dictionary source (shinjikai.app) on top, the app's own source code below.
+ * Both rows share the same label-over-title layout so neither reads as an afterthought.
+ */
 @Composable
-@OptIn(ExperimentalLayoutApi::class)
-private fun AboutCreditCard(
-    onOpenWebsite: () -> Unit,
-    onOpenLicense: () -> Unit
-) {
+private fun AboutLinksCard(onOpenWebsite: () -> Unit, onOpenSource: () -> Unit) {
     val colors = MaterialTheme.colorScheme
     Surface(
-        onClick = onOpenWebsite,
         modifier = Modifier.fillMaxWidth(),
         shape = SettingsCardShape,
         color = colors.surface,
         border = BorderStroke(1.dp, colors.outlineVariant)
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            KanjiWatermark(mark = "辞", fontSize = 130.sp)
-            Column(
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .clickable(role = Role.Button, onClick = onOpenWebsite)
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .background(colors.primary, SettingsTileChipShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "深",
-                            style = MaterialTheme.typography.titleLarge.copy(
-                                fontFamily = FontFamily.Default,
-                                fontSize = 22.sp
-                            ),
-                            fontWeight = FontWeight.Bold,
-                            color = colors.onPrimary
-                        )
+                AboutLinkRow(
+                    label = stringResource(R.string.settings_about_credit_label),
+                    title = stringResource(R.string.app_name),
+                    leading = {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .background(ShinjikaiUi.tileChipColor(), SettingsTileChipShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "深",
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontFamily = FontFamily.Default,
+                                    fontSize = 20.sp
+                                ),
+                                fontWeight = FontWeight.Bold,
+                                color = colors.primary
+                            )
+                        }
                     }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.settings_about_credit_label),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = colors.onSurfaceVariant
-                        )
-                        Text(
-                            text = stringResource(R.string.app_name),
-                            style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
-                            fontWeight = FontWeight.Bold,
-                            color = colors.onSurface
-                        )
-                    }
-                    Icon(
-                        painter = painterResource(R.drawable.ic_settings_external),
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-                FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_about_unofficial),
-                        modifier = Modifier.align(Alignment.CenterVertically),
-                        style = MaterialTheme.typography.bodyMedium.copy(lineHeight = 24.sp),
-                        color = colors.onSurfaceVariant
-                    )
-                    AboutLicenseBadge(
-                        text = stringResource(R.string.settings_about_license_cc_by),
-                        onClick = onOpenLicense,
-                        modifier = Modifier.align(Alignment.CenterVertically)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AboutSourceRow(onClick: () -> Unit) {
-    val colors = MaterialTheme.colorScheme
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = SettingsCardShape,
-        color = colors.surface,
-        border = BorderStroke(1.dp, colors.outlineVariant)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SettingsIconChip(
-                iconRes = R.drawable.ic_settings_github,
-                size = 44.dp,
-                iconSize = 22.dp,
-                shape = SettingsTileChipShape
-            )
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = stringResource(R.string.settings_about_open_source),
-                        style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onSurface
-                    )
-                    AboutLicenseBadge(text = stringResource(R.string.settings_about_license_mit))
-                }
-                Text(
-                    text = stringResource(R.string.settings_about_repo_label),
-                    style = MaterialTheme.typography.bodySmall.copy(textDirection = TextDirection.Ltr),
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
                 )
             }
-            Icon(
-                painter = painterResource(R.drawable.ic_settings_external),
-                contentDescription = null,
-                tint = colors.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = colors.outlineVariant
             )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(role = Role.Button, onClick = onOpenSource)
+            ) {
+                AboutLinkRow(
+                    label = stringResource(R.string.settings_about_open_source_label),
+                    title = stringResource(R.string.settings_about_open_source),
+                    leading = {
+                        SettingsIconChip(
+                            iconRes = R.drawable.ic_settings_github,
+                            size = 44.dp,
+                            iconSize = 22.dp,
+                            shape = SettingsTileChipShape
+                        )
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun AboutLicenseBadge(
-    text: String,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null
+private fun AboutLinkRow(
+    label: String,
+    title: String,
+    leading: @Composable () -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
-    Text(
-        text = text,
-        modifier = modifier
-            .clip(CircleShape)
-            .background(colors.primaryContainer.copy(alpha = 0.55f), CircleShape)
-            .border(1.dp, colors.primaryContainer, CircleShape)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-        style = MaterialTheme.typography.labelSmall.copy(textDirection = TextDirection.Ltr),
-        fontWeight = FontWeight.Bold,
-        color = colors.onPrimaryContainer
-    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        leading()
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant
+            )
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium.copy(fontSize = 17.sp),
+                fontWeight = FontWeight.Bold,
+                color = colors.onSurface
+            )
+        }
+        Icon(
+            painter = painterResource(R.drawable.ic_settings_external),
+            contentDescription = null,
+            tint = colors.onSurfaceVariant,
+            modifier = Modifier.size(16.dp)
+        )
+    }
 }
 
 @Composable
@@ -462,7 +398,7 @@ private fun SettingsHeader() {
 
 @Composable
 private fun SettingsSectionCard(
-    title: String,
+    title: String? = null,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(16.dp),
     titlePadding: PaddingValues = PaddingValues(horizontal = 4.dp),
@@ -479,15 +415,17 @@ private fun SettingsSectionCard(
             modifier = Modifier.padding(contentPadding),
             verticalArrangement = Arrangement.spacedBy(spacing)
         ) {
-            Text(
-                text = title,
-                modifier = Modifier
-                    .padding(titlePadding)
-                    .semantics { heading() },
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (title != null) {
+                Text(
+                    text = title,
+                    modifier = Modifier
+                        .padding(titlePadding)
+                        .semantics { heading() },
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             content()
         }
     }
@@ -574,7 +512,7 @@ private fun SettingsIconChip(
     Box(
         modifier = Modifier
             .size(size)
-            .background(MaterialTheme.colorScheme.surfaceVariant, shape),
+            .background(ShinjikaiUi.tileChipColor(), shape),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -614,7 +552,6 @@ private fun SettingsRowText(
 private fun SettingsSwitchRow(
     iconRes: Int,
     title: String,
-    description: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
@@ -631,10 +568,12 @@ private fun SettingsSwitchRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         SettingsIconChip(iconRes = iconRes)
-        SettingsRowText(
-            title = title,
-            description = description,
-            modifier = Modifier.weight(1f)
+        Text(
+            text = title,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall.copy(fontSize = 15.sp),
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
         )
         Switch(
             checked = checked,
@@ -655,7 +594,7 @@ private fun SettingsTile(
         onClick = onClick,
         modifier = modifier.heightIn(min = 160.dp),
         shape = SettingsTileShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        color = ShinjikaiUi.tileColor(),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
@@ -741,33 +680,28 @@ fun LocalDictionaryScreenContent(
                 onGoBack = onGoBack
             )
 
-            SettingsSectionCard(
-                title = stringResource(R.string.settings_overview_title),
-                spacing = 12.dp
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
+                DictionaryStatTile(
+                    iconRes = R.drawable.ic_settings_entries,
+                    value = entryCountLabel,
+                    label = stringResource(R.string.settings_entries_offline_label),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(IntrinsicSize.Min),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    DictionaryStatTile(
-                        iconRes = R.drawable.ic_settings_entries,
-                        value = entryCountLabel,
-                        label = stringResource(R.string.settings_entries_offline_label),
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                    )
-                    DictionaryStatTile(
-                        iconRes = R.drawable.ic_settings_clock,
-                        value = lastUpdateLabel,
-                        label = stringResource(R.string.settings_offline_metric_last_update_title),
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                    )
-                }
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
+                DictionaryStatTile(
+                    iconRes = R.drawable.ic_settings_clock,
+                    value = lastUpdateLabel,
+                    label = stringResource(R.string.settings_offline_metric_last_update_title),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
             }
 
             if (dictionaries.isNotEmpty()) {
@@ -901,7 +835,7 @@ private fun DictionaryStatTile(
     Surface(
         modifier = modifier,
         shape = SettingsTileShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        color = ShinjikaiUi.tileColor(),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(

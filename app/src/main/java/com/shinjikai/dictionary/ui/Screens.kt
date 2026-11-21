@@ -11,7 +11,8 @@ enum class Screen {
     Settings,
     LocalDictionary,
     AnkiExporterSettings,
-    Category
+    Category,
+    Shuffle
 }
 
 enum class DetailSource(val value: String) {
@@ -28,7 +29,8 @@ enum class AppRoute(val route: String, val screen: Screen) {
     Settings("settings", Screen.Settings),
     LocalDictionary("local-dictionary", Screen.LocalDictionary),
     AnkiExporterSettings("anki-exporter-settings", Screen.AnkiExporterSettings),
-    Category("category", Screen.Category);
+    Category("category", Screen.Category),
+    Shuffle("shuffle", Screen.Shuffle);
 
     companion object {
         const val SEARCH_QUERY_ARG = "query"
